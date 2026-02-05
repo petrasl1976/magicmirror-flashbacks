@@ -1,0 +1,6 @@
+**/node_modules/
+**/backend/cache/
+**/backend/state/
+**/.DS_Store
+mounts/modules/default/
+

@@ -1,0 +1,65 @@
+/* Clock + current weather sizing (minimal, no backgrounds) */
+.module.clock .time {
+  font-size: 6.5em !important;
+  line-height: 1.05;
+}
+
+.module.clock .clock-second-digital {
+  font-size: 0.45em !important;
+}
+
+.module.weather .type-temp {
+  font-size: 2.4em !important;
+  line-height: 1.2;
+}
+
+.module.weather .type-temp .bright {
+  font-size: 2.6em !important;
+}
+
+.module.weather .type-temp .weathericon,
+.module.weather .type-temp .weather-icon,
+.module.weather .type-temp .wi,
+.module.weather .type-temp .icon {
+  font-size: 2.6em !important;
+}
+
+/* Strong text outline for readability on any background */
+.module.clock *,
+.module.weather *,
+.module.calendar *,
+.module.compliments * {
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.95),
+    0 0 6px rgba(0, 0, 0, 0.9),
+    0 0 10px rgba(0, 0, 0, 0.85),
+    0 0 14px rgba(0, 0, 0, 0.8);
+}
+
+/* Forecast list larger */
+.module.weather .weather-icon,
+.module.weather .max-temp,
+.module.weather .min-temp,
+.module.weather .precipitation-amount,
+.module.weather .precipitation-prob,
+.module.weather .uv-index,
+.module.weather .day {
+  font-size: 1.8em !important;
+}
+
+/* Calendar larger (calendar module uses .calendar class) */
+.calendar,
+.module.calendar .calendar,
+.module.calendar .event-wrapper,
+.module.calendar .dateheader,
+.module.calendar .symbol,
+.module.calendar .title,
+.module.calendar .time,
+.module.calendar .location {
+  font-size: 1.4em !important;
+}
+
+.calendar .dimmed,
+.module.calendar .calendar .dimmed {
+  font-size: 1.2em !important;
+}

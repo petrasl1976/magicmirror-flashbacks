@@ -1,0 +1,35 @@
+services:
+  magicmirror:
+    container_name: mm
+    image: run-magicmirror
+    restart: always
+    network_mode: host
+    volumes:
+      - /volume1/Docker/MagicMirror/mounts/config:/opt/magic_mirror/config
+      - /volume1/Docker/MagicMirror/mounts/modules:/opt/magic_mirror/modules
+      - /volume1/Docker/MagicMirror/mounts/positions.js:/opt/magic_mirror/js/positions.js
+      - /volume1/Docker/MagicMirror/mounts/css/custom.css:/opt/magic_mirror/css/custom.css:ro
+    environment:
+      - TZ=Europe/Vilnius
+      - MM_CONFIG_FILE=/opt/magic_mirror/config/config.js
+      - MM_OVERRIDE_DEFAULT_MODULES=false
+      - MM_DISABLE_POSITION_CACHE=true
+  flashbacks-backend:
+    container_name: mm-flashbacks
+    image: mm-flashbacks:0.1
+    restart: always
+    network_mode: host
+    volumes:
+      - /volume1/FamilyMedia:/media:ro
+      - /volume1/Docker/MagicMirror:/cache
+    environment:
+      - TZ=Europe/Vilnius
+      - MEDIA_ROOT=/media
+      - CACHE_DIR=/cache/flashbacks-cache
+      - STREAM_COUNT=6
+      - ALBUM_EXPOSE_SEC=160
+      - COLLAGE_GRID_ROWS=2
+      - COLLAGE_GRID_COLS=2 
+      - OUTPUT_WIDTH=1920
+      - OUTPUT_HEIGHT=1080
+

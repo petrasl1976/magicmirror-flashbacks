@@ -1,0 +1,9 @@
+{
+  "name": "mmm-flashbacks-backend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.19.2",
+    "sharp": "^0.33.5"
+  }
+}
