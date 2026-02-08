@@ -28,8 +28,10 @@ services:
       - CACHE_DIR=/cache/flashbacks-cache
       - STREAM_COUNT=6
       - ALBUM_EXPOSE_SEC=160
-      - COLLAGE_GRID_ROWS=2
-      - COLLAGE_GRID_COLS=2 
+      - COLLAGE_GRID_ROWS=3
+      - COLLAGE_GRID_COLS=3 
       - OUTPUT_WIDTH=1920
       - OUTPUT_HEIGHT=1080
+      - VVT_STOP_NAME=Umėdžių st.
+      - VVT_LIMIT=10
 

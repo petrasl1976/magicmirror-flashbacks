@@ -18,6 +18,17 @@ var config = {
   }
 },
 {
+  module: "MMM-VVT",
+  position: "bottom_left",
+  config: {
+    baseUrl: "http://192.168.88.48:8099",
+    stopName: "Vaduvos st.",
+    stopId: "6850",
+    limit: 10,
+    refreshSec: 30
+  }
+},
+{
   module: "weather",
   position: "top_right",
   config: {
@@ -61,7 +72,7 @@ calendars: [
   },
   {
     symbol: "flag",
-    url: "https://www.calendarlabs.com/ical-calendar/ics/76/Lithuania_Holidays.ics",
+    url: "http://localhost:8080/modules/default/calendar/lt-holidays-2026.ics",
     name: "LT šventės",
     color: "#ffcc00"
   }

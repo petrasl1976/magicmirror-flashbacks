@@ -17,6 +17,15 @@
   font-size: 2.6em !important;
 }
 
+.module.weather .feelslike,
+.module.weather .feels-like,
+.module.weather .feels_like,
+.module.weather .feelslike .dimmed,
+.module.weather .feels-like .dimmed,
+.module.weather .feels_like .dimmed {
+  color: #ffcc00 !important;
+}
+
 .module.weather .type-temp .weathericon,
 .module.weather .type-temp .weather-icon,
 .module.weather .type-temp .wi,
@@ -45,6 +54,27 @@
 .module.weather .uv-index,
 .module.weather .day {
   font-size: 1.8em !important;
+}
+
+/* Highlight "Today" row in forecast (best-effort selectors) */
+.module.weather .weatherforecast tr:first-child *,
+.module.weather .weatherforecast tr:first-child td *,
+.module.weather .weatherforecast tr:first-child th * {
+  color: #ffcc00 !important;
+}
+.module.weather .weatherforecast .day:first-child,
+.module.weather .weatherforecast .weather-icon:first-child,
+.module.weather .weatherforecast .min-temp:first-child,
+.module.weather .weatherforecast .max-temp:first-child,
+.module.weather .weatherforecast .temp:first-child,
+.module.weather .weatherforecast .precipitation-amount:first-child,
+.module.weather .weatherforecast .precipitation-prob:first-child {
+  color: #ffcc00 !important;
+}
+
+.module.weather table.small tbody tr:first-child td,
+.module.weather table.small tbody tr:first-child td * {
+  color: #ffcc00 !important;
 }
 
 /* Calendar larger (calendar module uses .calendar class) */

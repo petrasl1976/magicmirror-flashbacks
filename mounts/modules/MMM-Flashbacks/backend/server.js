@@ -6,6 +6,8 @@ const path = require("path");
 const fs = require("fs");
 const fsp = fs.promises;
 const crypto = require("crypto");
+const https = require("https");
+const unzipper = require("unzipper");
 
 const app = express();
 
@@ -35,6 +37,10 @@ const RESIZE_QUALITY = 82;
 const ROOT_CACHE_TTL_MS = Number(process.env.ROOT_CACHE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const YEAR_CACHE_TTL_MS = Number(process.env.YEAR_CACHE_TTL_MS || 180 * 24 * 60 * 60 * 1000);
 const EVENT_CACHE_TTL_MS = Number(process.env.EVENT_CACHE_TTL_MS || 180 * 24 * 60 * 60 * 1000);
+const GTFS_URL = process.env.GTFS_URL || "https://www.stops.lt/vilnius/vilnius/gtfs.zip";
+const GTFS_REFRESH_MS = Number(process.env.GTFS_REFRESH_MS || 24 * 60 * 60 * 1000);
+const VVT_STOP_NAME = process.env.VVT_STOP_NAME || "Umėdžių st.";
+const VVT_LIMIT = Number(process.env.VVT_LIMIT || 10);
 
 // Atmetam tik #Recycle (ir papildomai tipines šiukšles)
 const EXCLUDED_TOPLEVEL = new Set(["#Recycle"]);
@@ -116,6 +122,286 @@ function log(reqId, msg, obj) {
   else console.log(base);
 }
 
+const GTFS_PATH = path.join(CACHE_DIR, "gtfs.zip");
+let gtfsCache = null; // { stopName, updatedAt, expiresAt, stopsById, stopIds, routesById, tripsById, calendarByService, calendarDatesByService, stopTimesByStop }
+
+function downloadGtfs() {
+  return new Promise((resolve, reject) => {
+    https.get(GTFS_URL, (res) => {
+      if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        return resolve(downloadGtfs(res.headers.location));
+      }
+      if (res.statusCode && res.statusCode >= 400) {
+        res.resume();
+        return reject(new Error(`GTFS download failed: ${res.statusCode}`));
+      }
+      fsp.mkdir(path.dirname(GTFS_PATH), { recursive: true })
+        .then(() => {
+          const out = fs.createWriteStream(GTFS_PATH);
+          res.pipe(out);
+          out.on("finish", resolve);
+          out.on("error", reject);
+        })
+        .catch(reject);
+    }).on("error", reject);
+  });
+}
+
+function parseCsvLine(line, delim) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "\"") {
+      if (inQuotes && line[i + 1] === "\"") {
+        cur += "\"";
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === delim && !inQuotes) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headerLine = lines[0].replace(/^\uFEFF/, "");
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  const semiCount = (headerLine.match(/;/g) || []).length;
+  const delim = semiCount > commaCount ? ";" : ",";
+  const headers = parseCsvLine(headerLine, delim);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCsvLine(lines[i], delim);
+    if (!cols.length) continue;
+    const row = {};
+    for (let j = 0; j < headers.length; j++) {
+      row[headers[j]] = cols[j] ?? "";
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function normalizeStopName(name) {
+  return String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dateYmd(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}${m}${d}`;
+}
+
+function dayIndex(date) {
+  const d = date.getDay(); // 0=Sun
+  return d === 0 ? 6 : d - 1; // Mon=0 .. Sun=6
+}
+
+function parseTimeToSeconds(t) {
+  const parts = String(t).split(":").map((n) => Number(n));
+  if (parts.length < 2 || Number.isNaN(parts[0])) return null;
+  const h = parts[0];
+  const m = parts[1] || 0;
+  const s = parts[2] || 0;
+  return h * 3600 + m * 60 + s;
+}
+
+async function loadGtfs(stopName, stopIdOverride) {
+  const now = Date.now();
+  const cacheKey = `${stopName || ""}::${stopIdOverride || ""}`;
+  if (gtfsCache && gtfsCache.expiresAt > now && gtfsCache.cacheKey === cacheKey) {
+    log("gtfs", "cache HIT", { stopName, stopIdOverride, expiresAt: gtfsCache.expiresAt });
+    return gtfsCache;
+  }
+
+  const zipExists = fs.existsSync(GTFS_PATH);
+  const zipAge = zipExists ? (now - fs.statSync(GTFS_PATH).mtimeMs) : Infinity;
+  log("gtfs", "zip status", { zipExists, zipAgeMs: zipAge, refreshMs: GTFS_REFRESH_MS, path: GTFS_PATH });
+  if (!zipExists || zipAge > GTFS_REFRESH_MS) {
+    log("gtfs", "downloading", { url: GTFS_URL });
+    await downloadGtfs();
+    log("gtfs", "downloaded", { path: GTFS_PATH });
+  }
+
+  const zip = await unzipper.Open.file(GTFS_PATH);
+  log("gtfs", "zip opened", { entries: zip.files.length });
+  async function readFile(name) {
+    const entry = zip.files.find((f) => f.path === name);
+    if (!entry) return "";
+    const buf = await entry.buffer();
+    return buf.toString("utf8");
+  }
+
+  const fileList = ["stops.txt", "routes.txt", "trips.txt", "calendar.txt", "calendar_dates.txt", "stop_times.txt"];
+  log("gtfs", "files present", {
+    names: zip.files.map((f) => f.path).filter((p) => fileList.includes(p))
+  });
+
+  const stops = parseCsv(await readFile("stops.txt"));
+  const routes = parseCsv(await readFile("routes.txt"));
+  const trips = parseCsv(await readFile("trips.txt"));
+  const calendar = parseCsv(await readFile("calendar.txt"));
+  const calendarDates = parseCsv(await readFile("calendar_dates.txt"));
+  log("gtfs", "rows loaded", {
+    stops: stops.length,
+    routes: routes.length,
+    trips: trips.length,
+    calendar: calendar.length,
+    calendarDates: calendarDates.length
+  });
+
+  const target = normalizeStopName(stopName);
+  const stopsById = new Map(stops.map((s) => [s.stop_id, s]));
+  let stopIds = [];
+  if (stopIdOverride) {
+    stopIds = [String(stopIdOverride)];
+    log("gtfs", "stop override", { stopIdOverride });
+  } else {
+    const exact = stops.filter((s) => normalizeStopName(s.stop_name) === target);
+    const prefix = stops.filter((s) => normalizeStopName(s.stop_name).startsWith(target));
+    const contains = stops.filter((s) => normalizeStopName(s.stop_name).includes(target));
+    const candidates = exact.length ? exact : (prefix.length ? prefix : contains);
+    stopIds = candidates.map((s) => s.stop_id);
+    log("gtfs", "stop match", {
+      stopName,
+      target,
+      exact: exact.length,
+      prefix: prefix.length,
+      contains: contains.length,
+      chosen: candidates.slice(0, 3).map((s) => s.stop_name),
+      stopIds: stopIds.slice(0, 3)
+    });
+  }
+
+  const routesById = new Map(routes.map((r) => [r.route_id, r]));
+  const tripsById = new Map(trips.map((t) => [t.trip_id, t]));
+
+  const calendarByService = new Map();
+  calendar.forEach((c) => calendarByService.set(c.service_id, c));
+
+  const calendarDatesByService = new Map();
+  calendarDates.forEach((c) => {
+    const list = calendarDatesByService.get(c.service_id) || [];
+    list.push(c);
+    calendarDatesByService.set(c.service_id, list);
+  });
+
+  const stopTimesByStop = new Map();
+  if (stopIds.length) {
+    const stopSet = new Set(stopIds);
+    const stopTimes = parseCsv(await readFile("stop_times.txt"));
+    log("gtfs", "stop_times loaded", { rows: stopTimes.length });
+    for (const st of stopTimes) {
+      if (!stopSet.has(st.stop_id)) continue;
+      const list = stopTimesByStop.get(st.stop_id) || [];
+      list.push({
+        trip_id: st.trip_id,
+        arrival_time: st.arrival_time
+      });
+      stopTimesByStop.set(st.stop_id, list);
+    }
+    log("gtfs", "stop_times matched", {
+      stopIds: stopIds.slice(0, 3),
+      count: stopTimesByStop.get(stopIds[0]) ? stopTimesByStop.get(stopIds[0]).length : 0
+    });
+  }
+
+  gtfsCache = {
+    cacheKey,
+    stopName,
+    updatedAt: now,
+    expiresAt: now + GTFS_REFRESH_MS,
+    stopIds,
+    stopsById,
+    routesById,
+    tripsById,
+    calendarByService,
+    calendarDatesByService,
+    stopTimesByStop
+  };
+
+  return gtfsCache;
+}
+
+function isServiceActive(service, exceptions, todayYmd, todayIdx) {
+  if (!service) return false;
+  if (service.start_date && todayYmd < service.start_date) return false;
+  if (service.end_date && todayYmd > service.end_date) return false;
+  const dayKeys = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  if (service[dayKeys[todayIdx]] !== "1") return false;
+  if (!exceptions) return true;
+  for (const ex of exceptions) {
+    if (ex.date === todayYmd) {
+      return ex.exception_type === "1";
+    }
+  }
+  return true;
+}
+
+async function getNextArrivals(stopName, limit, stopIdOverride) {
+  const cache = await loadGtfs(stopName, stopIdOverride);
+  const stopId = cache.stopIds[0];
+  if (!stopId) {
+    return { stopName, stopId: null, items: [] };
+  }
+
+  const list = cache.stopTimesByStop.get(stopId) || [];
+  const now = new Date();
+  const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+  const out = [];
+  for (let dayOffset = 0; dayOffset < 7 && out.length < limit * 5; dayOffset++) {
+    const day = new Date(now.getTime() + dayOffset * 24 * 60 * 60 * 1000);
+    const dayYmd = dateYmd(day);
+    const dayIdx = dayIndex(day);
+    for (const st of list) {
+      const trip = cache.tripsById.get(st.trip_id);
+      if (!trip) continue;
+      const service = cache.calendarByService.get(trip.service_id);
+      const ex = cache.calendarDatesByService.get(trip.service_id);
+      if (!isServiceActive(service, ex, dayYmd, dayIdx)) continue;
+      const arrivalSec = parseTimeToSeconds(st.arrival_time);
+      if (arrivalSec === null) continue;
+      const diffSec = dayOffset === 0
+        ? arrivalSec - nowSec
+        : (dayOffset * 86400 + arrivalSec - nowSec);
+      if (diffSec < -60) continue;
+      const minutes = Math.max(0, Math.floor(diffSec / 60));
+      const route = cache.routesById.get(trip.route_id);
+      out.push({
+        route: route ? (route.route_short_name || route.route_id) : trip.route_id,
+        headsign: trip.trip_headsign || "",
+        minutes,
+        arrivalTime: st.arrival_time
+      });
+    }
+  }
+
+  out.sort((a, b) => {
+    if (a.minutes !== b.minutes) return a.minutes - b.minutes;
+    return a.arrivalTime.localeCompare(b.arrivalTime);
+  });
+
+  return { stopName, stopId, items: out.slice(0, limit) };
+}
+
 // --- cache layer (per-folder json, mirrors /media) ---
 function cachePathForDir(absDir, kind) {
   const rel = relFromRoot(absDir); // "" for root
@@ -145,12 +431,12 @@ async function writeCacheFile(cachePath, payload) {
 
 async function listDirs(absDir) {
   try {
-    const entries = await fsp.readdir(absDir, { withFileTypes: true });
-    return entries
-      .filter(e => e.isDirectory())
-      .map(e => e.name)
-      .filter(name => !isHidden(name))
-      .filter(name => !EXCLUDED_DIR_NAMES.has(name.toLowerCase()));
+  const entries = await fsp.readdir(absDir, { withFileTypes: true });
+  return entries
+    .filter(e => e.isDirectory())
+    .map(e => e.name)
+    .filter(name => !isHidden(name))
+    .filter(name => !EXCLUDED_DIR_NAMES.has(name.toLowerCase()));
   } catch (e) {
     log("scan", "listDirs failed", { dir: absDir, err: String(e) });
     return [];
@@ -560,6 +846,71 @@ app.get("/collage/overview", async (req, res) => {
   }
 });
 
+app.get("/vvt/next", async (req, res) => {
+  try {
+    const stopName = req.query.stop || VVT_STOP_NAME;
+    const stopId = req.query.stopId || null;
+    const limit = Number(req.query.limit || VVT_LIMIT);
+    const data = await getNextArrivals(stopName, limit, stopId);
+    res.setHeader("Cache-Control", "no-store");
+    setCors(res);
+    res.json({
+      stopName: data.stopName,
+      stopId: data.stopId,
+      updatedAt: nowIso(),
+      items: data.items
+    });
+  } catch (e) {
+    res.status(500).json({ error: "vvt_failed" });
+  }
+});
+
+app.get("/vvt/debug", async (req, res) => {
+  try {
+    const stopName = req.query.stop || VVT_STOP_NAME;
+    const stopIdOverride = req.query.stopId || null;
+    const cache = await loadGtfs(stopName, stopIdOverride);
+    const stopId = cache.stopIds[0] || null;
+    const stopSample = stopId && cache.stopsById ? cache.stopsById.get(stopId) : null;
+    res.setHeader("Cache-Control", "no-store");
+    setCors(res);
+    res.json({
+      gtfsUrl: GTFS_URL,
+      gtfsPath: GTFS_PATH,
+      updatedAt: cache.updatedAt ? new Date(cache.updatedAt).toISOString() : null,
+      expiresAt: cache.expiresAt ? new Date(cache.expiresAt).toISOString() : null,
+      stopName,
+      stopId,
+      stopSample,
+      stopIds: cache.stopIds.slice(0, 5),
+      stopTimesCount: stopId && cache.stopTimesByStop.get(stopId)
+        ? cache.stopTimesByStop.get(stopId).length
+        : 0
+    });
+  } catch (e) {
+    res.status(500).json({ error: "vvt_failed" });
+  }
+});
+app.get("/vvt/stops", async (req, res) => {
+  try {
+    const q = normalizeStopName(req.query.q || "");
+    const limit = Number(req.query.limit || 50);
+    const cache = await loadGtfs(req.query.stop || VVT_STOP_NAME);
+    const out = [];
+    for (const [id, s] of cache.stopsById.entries()) {
+      const name = s.stop_name || "";
+      if (!q || normalizeStopName(name).includes(q)) {
+        out.push({ stop_id: id, stop_name: name });
+      }
+    }
+    res.setHeader("Cache-Control", "no-store");
+    setCors(res);
+    res.json({ items: out.slice(0, limit) });
+  } catch (e) {
+    res.status(500).json({ error: "vvt_failed" });
+  }
+});
+
 // State endpoint for frontend overlay
 app.get("/state", async (req, res) => {
   const reqId = rid();
@@ -615,6 +966,9 @@ app.get("/help", (req, res) => {
       { path: "/image/:id", method: "GET", description: "Serve image for stream id (0..STREAM_COUNT-1)." },
       { path: "/collage/sequence", method: "GET", description: "Serve collage from next images in the same album." },
       { path: "/collage/overview", method: "GET", description: "Serve overview collage from evenly spaced images in the album." },
+      { path: "/vvt/next", method: "GET", description: "Next departures from a stop (GTFS schedule)." },
+      { path: "/vvt/stops", method: "GET", description: "Search stop names (GTFS)." },
+      { path: "/vvt/debug", method: "GET", description: "Debug GTFS cache and stop matching." },
       { path: "/state", method: "GET", description: "Return current set info (album, images, collages) and timing." },
       { path: "/next", method: "GET", description: "Force-create next set immediately." },
       { path: "/exclude", method: "GET", description: "Exclude current album and force-generate next set." },

@@ -197,10 +197,20 @@ Module.register("MMM-Flashbacks", {
       .replace(/'/g, "&#39;");
   },
 
+  _formatCurrentPath(pathText) {
+    const raw = String(pathText || "");
+    const parts = raw.split("/");
+    if (!parts.length) return this._escapeHtml(raw);
+    const year = this._escapeHtml(parts[0]);
+    const rest = this._escapeHtml(parts.slice(1).join("/"));
+    if (!rest) return `<span class="fb-year">${year}</span>`;
+    return `<span class="fb-year">${year}</span>/${rest}`;
+  },
+
   _formatOverlayHtml(currentPath, prevPath, olderPath) {
     if (!currentPath) return "";
     const lines = [];
-    lines.push(`<div class="fb-line fb-line-current">${this._escapeHtml(currentPath)}</div>`);
+    lines.push(`<div class="fb-line fb-line-current">${this._formatCurrentPath(currentPath)}</div>`);
     if (prevPath) lines.push(`<div class="fb-line fb-line-prev">${this._escapeHtml(prevPath)}</div>`);
     if (olderPath) lines.push(`<div class="fb-line fb-line-older">${this._escapeHtml(olderPath)}</div>`);
     return lines.join("");
