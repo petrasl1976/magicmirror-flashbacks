@@ -1,17 +1,5 @@
-const fs = require("fs");
-const path = require("path");
-
-const BACKEND_PORT = Number(process.env.BACKEND_PORT);
-if (!Number.isFinite(BACKEND_PORT)) {
-  throw new Error("BACKEND_PORT is required (set via docker-compose)");
-}
-
-const secretsPath = path.join(__dirname, "config.secret.js");
-const secrets = fs.existsSync(secretsPath) ? require(secretsPath) : {};
-const FAMILY_CALENDAR_URL = secrets.FAMILY_CALENDAR_URL || process.env.FAMILY_CALENDAR_URL;
-if (!FAMILY_CALENDAR_URL) {
-  throw new Error("FAMILY_CALENDAR_URL is required (set in config.secret.js)");
-}
+const BACKEND_PORT = 8099;
+const FAMILY_CALENDAR_URL = "YOUR_CALENDAR_URL_HERE";
 
 var config = {
   address: "0.0.0.0",
@@ -22,7 +10,7 @@ var config = {
   units: "metric",
   modules: [
 {
-  module: "MMM-Flashbacks",
+  module: "MMM-PL-Flashbacks",
   position: "fullscreen_below",
   config: {
     backendPort: BACKEND_PORT,
@@ -33,7 +21,7 @@ var config = {
   }
 },
 {
-  module: "MMM-VVT",
+  module: "MMM-PL-VVT",
   position: "bottom_left",
   config: {
     backendPort: BACKEND_PORT,

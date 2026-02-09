@@ -761,7 +761,7 @@ async function pickNewSelection(reqId) {
 }
 
 // --- routes ---
-// MMM-Flashbacks tikisi /stream/:id (pvz. /stream/0)
+// MMM-PL-Flashbacks tikisi /stream/:id (pvz. /stream/0)
 function buildActiveSet(sel) {
   return {
     ...sel,

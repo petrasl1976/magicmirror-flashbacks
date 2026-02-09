@@ -1,6 +1,6 @@
 /* global Module */
 
-Module.register("MMM-Flashbacks", {
+Module.register("MMM-PL-Flashbacks", {
   DEFAULT_ROTATE_MS: 20 * 1000,
   DEFAULT_OBJECT_FIT: "contain",
   DEFAULT_STREAM_COUNT: 6,
@@ -39,7 +39,7 @@ Module.register("MMM-Flashbacks", {
   },
 
   getStyles() {
-    return ["MMM-Flashbacks.css"];
+    return ["MMM-PL-Flashbacks.css"];
   },
 
   getDom() {

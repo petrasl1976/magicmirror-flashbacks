@@ -1,6 +1,6 @@
 /* global Module */
 
-Module.register("MMM-VVT", {
+Module.register("MMM-PL-VVT", {
   defaults: {
     baseUrl: "",
     stopName: "Umėdžių st.",
@@ -26,7 +26,7 @@ Module.register("MMM-VVT", {
   },
 
   getStyles() {
-    return ["MMM-VVT.css"];
+    return ["MMM-PL-VVT.css"];
   },
 
   getDom() {

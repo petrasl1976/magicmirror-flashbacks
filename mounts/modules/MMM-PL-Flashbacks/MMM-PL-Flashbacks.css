@@ -1,18 +1,18 @@
-.MMM-Flashbacks {
+.MMM-PL-Flashbacks {
   position: fixed;
   inset: 0;
   z-index: 0;            /* po kitais widgetais */
   pointer-events: none;
 }
 
-.MMM-Flashbacks .fb-wrap {
+.MMM-PL-Flashbacks .fb-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
   background: #000;
 }
 
-.MMM-Flashbacks img.fb-img {
+.MMM-PL-Flashbacks img.fb-img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -23,7 +23,7 @@
   will-change: opacity;
 }
 
-.MMM-Flashbacks img.fb-img.is-active {
+.MMM-PL-Flashbacks img.fb-img.is-active {
   opacity: 1;
 }
 
