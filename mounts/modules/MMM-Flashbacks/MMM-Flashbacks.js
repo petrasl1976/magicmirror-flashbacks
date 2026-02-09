@@ -5,7 +5,7 @@ Module.register("MMM-Flashbacks", {
   DEFAULT_OBJECT_FIT: "contain",
   DEFAULT_STREAM_COUNT: 6,
   defaults: {
-    baseUrl: "http://127.0.0.1:8099",
+    baseUrl: "",
     fadeMs: 1200,
     collage: "off", // off | atend | both (legacy)
     collageOverview: true,
@@ -29,6 +29,13 @@ Module.register("MMM-Flashbacks", {
     this._tickTimer = null;
     this._refreshTimer = null;
     this._awaitFirstState = true;
+    this._baseUrl = this._getBaseUrl();
+  },
+
+  _getBaseUrl() {
+    if (this.config.baseUrl) return this.config.baseUrl;
+    const port = Number(this.config.backendPort);
+    return `http://${window.location.hostname}:${port}`;
   },
 
   getStyles() {
@@ -153,7 +160,8 @@ Module.register("MMM-Flashbacks", {
     if (!force && now - this.lastStateFetch < 5000) return;
     this.lastStateFetch = now;
 
-    const url = `${this.config.baseUrl}/state?t=${now}`;
+    const baseUrl = this._baseUrl || this._getBaseUrl();
+    const url = `${baseUrl}/state?t=${now}`;
     fetch(url, { cache: "no-store" })
       .then((resp) => {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -250,11 +258,12 @@ Module.register("MMM-Flashbacks", {
     if (!this.sequence.length) this.sequence = this.buildSequence();
 
     const current = this.sequence[this.index] || { type: "stream", streamId: 0 };
+    const baseUrl = this._baseUrl || this._getBaseUrl();
     const url = current.type === "collageOverview"
-      ? `${this.config.baseUrl}/collage/overview?t=${Date.now()}`
+      ? `${baseUrl}/collage/overview?t=${Date.now()}`
       : current.type === "collageEnd"
-        ? `${this.config.baseUrl}/collage/sequence?t=${Date.now()}`
-        : `${this.config.baseUrl}/image/${current.streamId}?t=${Date.now()}`;
+        ? `${baseUrl}/collage/sequence?t=${Date.now()}`
+        : `${baseUrl}/image/${current.streamId}?t=${Date.now()}`;
 
     // fade-out
     this.imgEl.style.opacity = "0";

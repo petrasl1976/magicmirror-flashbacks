@@ -18,7 +18,6 @@ const CACHE_DIR = process.env.CACHE_DIR
 const ROOT_EXISTS = fs.existsSync(ROOT_DIR);
 
 const STREAM_COUNT = Number(process.env.STREAM_COUNT || 6);
-const WINDOW_SIZE = STREAM_COUNT;
 const ALBUM_EXPOSE_SEC = Number(process.env.ALBUM_EXPOSE_SEC || 0);
 const SET_WINDOW_MS = ALBUM_EXPOSE_SEC > 0
   ? ALBUM_EXPOSE_SEC * 1000
@@ -31,8 +30,6 @@ const OUTPUT_WIDTH = Number(process.env.OUTPUT_WIDTH || 1920);
 const OUTPUT_HEIGHT = Number(process.env.OUTPUT_HEIGHT || 1080);
 const COLLAGE_QUALITY = Number(process.env.COLLAGE_QUALITY || 82);
 const AUTO_ROTATE = String(process.env.AUTO_ROTATE || "1") === "1";
-const RESIZE_WIDTH = OUTPUT_WIDTH;
-const RESIZE_HEIGHT = OUTPUT_HEIGHT;
 const RESIZE_QUALITY = 82;
 const ROOT_CACHE_TTL_MS = Number(process.env.ROOT_CACHE_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 const YEAR_CACHE_TTL_MS = Number(process.env.YEAR_CACHE_TTL_MS || 180 * 24 * 60 * 60 * 1000);
@@ -41,6 +38,11 @@ const GTFS_URL = process.env.GTFS_URL || "https://www.stops.lt/vilnius/vilnius/g
 const GTFS_REFRESH_MS = Number(process.env.GTFS_REFRESH_MS || 24 * 60 * 60 * 1000);
 const VVT_STOP_NAME = process.env.VVT_STOP_NAME || "Umėdžių st.";
 const VVT_LIMIT = Number(process.env.VVT_LIMIT || 10);
+const WEATHER_LAT = Number(process.env.WEATHER_LAT || 54.6872);
+const WEATHER_LON = Number(process.env.WEATHER_LON || 25.2797);
+const WEATHER_UNIT = String(process.env.WEATHER_UNIT || "celsius");
+const WEATHER_INTERVAL_MIN = Number(process.env.WEATHER_INTERVAL_MIN || 60);
+const WEATHER_HISTORY_HOURS = Number(process.env.WEATHER_HISTORY_HOURS || 72);
 
 // Atmetam tik #Recycle (ir papildomai tipines šiukšles)
 const EXCLUDED_TOPLEVEL = new Set(["#Recycle"]);
@@ -124,6 +126,9 @@ function log(reqId, msg, obj) {
 
 const GTFS_PATH = path.join(CACHE_DIR, "gtfs.zip");
 let gtfsCache = null; // { stopName, updatedAt, expiresAt, stopsById, stopIds, routesById, tripsById, calendarByService, calendarDatesByService, stopTimesByStop }
+
+const WEATHER_CACHE_FILE = path.join(CACHE_DIR, "weather-trends.json");
+let weatherSamples = [];
 
 function downloadGtfs() {
   return new Promise((resolve, reject) => {
@@ -270,15 +275,19 @@ async function loadGtfs(stopName, stopIdOverride) {
   const target = normalizeStopName(stopName);
   const stopsById = new Map(stops.map((s) => [s.stop_id, s]));
   let stopIds = [];
+  let resolvedStopName = stopName;
   if (stopIdOverride) {
     stopIds = [String(stopIdOverride)];
-    log("gtfs", "stop override", { stopIdOverride });
+    const s = stopsById.get(String(stopIdOverride));
+    if (s && s.stop_name) resolvedStopName = s.stop_name;
+    log("gtfs", "stop override", { stopIdOverride, resolvedStopName });
   } else {
     const exact = stops.filter((s) => normalizeStopName(s.stop_name) === target);
     const prefix = stops.filter((s) => normalizeStopName(s.stop_name).startsWith(target));
     const contains = stops.filter((s) => normalizeStopName(s.stop_name).includes(target));
     const candidates = exact.length ? exact : (prefix.length ? prefix : contains);
     stopIds = candidates.map((s) => s.stop_id);
+    if (candidates.length && candidates[0].stop_name) resolvedStopName = candidates[0].stop_name;
     log("gtfs", "stop match", {
       stopName,
       target,
@@ -325,7 +334,7 @@ async function loadGtfs(stopName, stopIdOverride) {
 
   gtfsCache = {
     cacheKey,
-    stopName,
+    stopName: resolvedStopName,
     updatedAt: now,
     expiresAt: now + GTFS_REFRESH_MS,
     stopIds,
@@ -358,8 +367,9 @@ function isServiceActive(service, exceptions, todayYmd, todayIdx) {
 async function getNextArrivals(stopName, limit, stopIdOverride) {
   const cache = await loadGtfs(stopName, stopIdOverride);
   const stopId = cache.stopIds[0];
+  const effectiveStopName = cache.stopName || stopName;
   if (!stopId) {
-    return { stopName, stopId: null, items: [] };
+    return { stopName: effectiveStopName, stopId: null, items: [] };
   }
 
   const list = cache.stopTimesByStop.get(stopId) || [];
@@ -399,7 +409,7 @@ async function getNextArrivals(stopName, limit, stopIdOverride) {
     return a.arrivalTime.localeCompare(b.arrivalTime);
   });
 
-  return { stopName, stopId, items: out.slice(0, limit) };
+  return { stopName: effectiveStopName, stopId, items: out.slice(0, limit) };
 }
 
 // --- cache layer (per-folder json, mirrors /media) ---
@@ -428,6 +438,57 @@ async function writeCacheFile(cachePath, payload) {
     log("cache", "writeCacheFile failed, continuing without cache", { err: String(e), cachePath });
   }
 }
+
+function loadWeatherFile() {
+  try {
+    if (!fs.existsSync(WEATHER_CACHE_FILE)) return [];
+    const raw = fs.readFileSync(WEATHER_CACHE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function trimWeatherSamples(samples) {
+  const cutoff = Date.now() - WEATHER_HISTORY_HOURS * 60 * 60 * 1000;
+  return samples.filter((s) => s && typeof s.ts === "number" && s.ts >= cutoff);
+}
+
+async function fetchWeatherSample() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const resp = await fetch(url, { cache: "no-store" });
+  if (!resp.ok) throw new Error(`weather_fetch_${resp.status}`);
+  const data = await resp.json();
+  const current = data && data.current ? data.current : null;
+  if (!current || typeof current.temperature_2m !== "number" || typeof current.apparent_temperature !== "number") {
+    throw new Error("weather_missing_current");
+  }
+  return {
+    ts: Date.now(),
+    temp: current.temperature_2m,
+    feels: current.apparent_temperature
+  };
+}
+
+async function recordWeatherSample() {
+  try {
+    const sample = await fetchWeatherSample();
+    weatherSamples.push(sample);
+    weatherSamples = trimWeatherSamples(weatherSamples);
+    await writeCacheFile(WEATHER_CACHE_FILE, weatherSamples);
+  } catch (e) {
+    console.warn("[flashbacks] WARN: weather sample failed", { err: String(e) });
+  }
+}
+
+function startWeatherLogger() {
+  weatherSamples = trimWeatherSamples(loadWeatherFile());
+  recordWeatherSample();
+  setInterval(recordWeatherSample, Math.max(5, WEATHER_INTERVAL_MIN) * 60 * 1000);
+}
+
+startWeatherLogger();
 
 async function listDirs(absDir) {
   try {
@@ -642,7 +703,7 @@ async function ensureRotateFlags(state) {
 
 async function pickNewSelection(reqId) {
   // 1) metų folderis (top-level), excludinam tik #Recycle
-  log(reqId, "BUILD set (random N)", { windowSize: WINDOW_SIZE });
+  log(reqId, "BUILD set (random N)", { windowSize: STREAM_COUNT });
   const { dirs: years, cacheHit: rootCacheHit } = await getRootDirsCached(reqId);
   log(reqId, "root dir list", { count: years.length, cacheHit: rootCacheHit });
   if (!years.length) throw new Error("No top-level folders found (after exclude).");
@@ -682,8 +743,8 @@ async function pickNewSelection(reqId) {
     }
 
     // 4) random start + 5 iš eilės
-    const { startIndex, window } = pickWindow(files, WINDOW_SIZE);
-    log(reqId, "pick window", { year, event: eventName, startIndex, windowSize: WINDOW_SIZE, filesTotal: files.length });
+  const { startIndex, window } = pickWindow(files, STREAM_COUNT);
+  log(reqId, "pick window", { year, event: eventName, startIndex, windowSize: STREAM_COUNT, filesTotal: files.length });
     const windowRel = window.map(relFromRoot);
 
     return {
@@ -778,7 +839,7 @@ app.get("/image/:id", async (req, res) => {
 
     let pipeline = sharp(fileAbs);
     if (AUTO_ROTATE) pipeline = pipeline.rotate();
-    pipeline = pipeline.resize(RESIZE_WIDTH, RESIZE_HEIGHT, { fit: "inside", withoutEnlargement: true });
+    pipeline = pipeline.resize(OUTPUT_WIDTH, OUTPUT_HEIGHT, { fit: "inside", withoutEnlargement: true });
     const buf = await pipeline.jpeg({ quality: RESIZE_QUALITY }).toBuffer();
     res.setHeader("Content-Type", "image/jpeg");
     res.send(buf);
@@ -804,7 +865,7 @@ app.get("/collage/sequence", async (req, res) => {
 
     if (!state.collageEnd) {
       const count = getCollageCount(state.files);
-      const collageFiles = pickCollageFiles(state.files, state.startIndex || 0, count, WINDOW_SIZE);
+      const collageFiles = pickCollageFiles(state.files, state.startIndex || 0, count, STREAM_COUNT);
       state.collageEnd = await buildCollage(collageFiles);
     }
 
@@ -844,6 +905,19 @@ app.get("/collage/overview", async (req, res) => {
     log(reqId, "ERROR collage/overview", { err: String(e) });
     res.status(500).send("Collage error");
   }
+});
+
+app.get("/weather/trends", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  setCors(res);
+  const samples = trimWeatherSamples(weatherSamples);
+  weatherSamples = samples;
+  res.json({
+    updatedAt: nowIso(),
+    historyHours: WEATHER_HISTORY_HOURS,
+    intervalMin: WEATHER_INTERVAL_MIN,
+    samples
+  });
 });
 
 app.get("/vvt/next", async (req, res) => {
@@ -966,6 +1040,7 @@ app.get("/help", (req, res) => {
       { path: "/image/:id", method: "GET", description: "Serve image for stream id (0..STREAM_COUNT-1)." },
       { path: "/collage/sequence", method: "GET", description: "Serve collage from next images in the same album." },
       { path: "/collage/overview", method: "GET", description: "Serve overview collage from evenly spaced images in the album." },
+      { path: "/weather/trends", method: "GET", description: "Temperature & feels-like history samples." },
       { path: "/vvt/next", method: "GET", description: "Next departures from a stop (GTFS schedule)." },
       { path: "/vvt/stops", method: "GET", description: "Search stop names (GTFS)." },
       { path: "/vvt/debug", method: "GET", description: "Debug GTFS cache and stop matching." },
@@ -999,12 +1074,15 @@ app.get("/next", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8099;
-app.listen(PORT, () => {
+const BACKEND_PORT = Number(process.env.BACKEND_PORT);
+if (!Number.isFinite(BACKEND_PORT)) {
+  throw new Error("BACKEND_PORT is required (set via docker-compose)");
+}
+app.listen(BACKEND_PORT, () => {
   if (!ROOT_EXISTS) {
     console.error(`[flashbacks] ERROR: ROOT_DIR missing: ${ROOT_DIR}`);
     process.exit(1);
   }
-  console.log(`[flashbacks] listening on ${PORT}, root=${ROOT_DIR}, cacheDir=${CACHE_DIR}`);
+  console.log(`[flashbacks] listening on ${BACKEND_PORT}, root=${ROOT_DIR}, cacheDir=${CACHE_DIR}`);
 });
 

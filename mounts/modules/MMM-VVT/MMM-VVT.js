@@ -2,7 +2,7 @@
 
 Module.register("MMM-VVT", {
   defaults: {
-    baseUrl: "http://127.0.0.1:8099",
+    baseUrl: "",
     stopName: "Umėdžių st.",
     stopId: "",
     limit: 10,
@@ -14,8 +14,15 @@ Module.register("MMM-VVT", {
     this.lastError = null;
     this.stopLabel = this.config.stopName;
     this._timer = null;
+    this._baseUrl = this._getBaseUrl();
     this._fetch();
     this._timer = setInterval(() => this._fetch(), this.config.refreshSec * 1000);
+  },
+
+  _getBaseUrl() {
+    if (this.config.baseUrl) return this.config.baseUrl;
+    const port = Number(this.config.backendPort);
+    return `http://${window.location.hostname}:${port}`;
   },
 
   getStyles() {
@@ -80,7 +87,8 @@ Module.register("MMM-VVT", {
     const qs = stopId
       ? `stopId=${encodeURIComponent(stopId)}`
       : `stop=${encodeURIComponent(this.config.stopName)}`;
-    const url = `${this.config.baseUrl}/vvt/next?${qs}&limit=${this.config.limit}`;
+    const baseUrl = this._baseUrl || this._getBaseUrl();
+    const url = `${baseUrl}/vvt/next?${qs}&limit=${this.config.limit}`;
     fetch(url, { cache: "no-store" })
       .then((resp) => {
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

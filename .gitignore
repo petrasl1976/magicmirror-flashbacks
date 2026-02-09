@@ -5,4 +5,5 @@
 mounts/modules/default/**
 !mounts/modules/default/calendar/
 !mounts/modules/default/calendar/lt-holidays-2026.ics
+mounts/config/config.secret.js
 

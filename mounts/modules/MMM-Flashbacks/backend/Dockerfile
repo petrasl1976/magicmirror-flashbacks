@@ -9,7 +9,4 @@ RUN npm ci --omit=dev --no-audit --no-fund || npm install --omit=dev --no-audit 
 # app
 COPY server.js ./
 
-ENV PORT=8099
-EXPOSE 8099
-
 CMD ["node","server.js"]

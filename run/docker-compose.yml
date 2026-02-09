@@ -10,10 +10,11 @@ services:
       - /volume1/Docker/MagicMirror/mounts/positions.js:/opt/magic_mirror/js/positions.js
       - /volume1/Docker/MagicMirror/mounts/css/custom.css:/opt/magic_mirror/css/custom.css:ro
     environment:
-      - TZ=Europe/Vilnius
-      - MM_CONFIG_FILE=/opt/magic_mirror/config/config.js
-      - MM_OVERRIDE_DEFAULT_MODULES=false
-      - MM_DISABLE_POSITION_CACHE=true
+      TZ: Europe/Vilnius
+      MM_CONFIG_FILE: /opt/magic_mirror/config/config.js
+      MM_OVERRIDE_DEFAULT_MODULES: "false"
+      MM_DISABLE_POSITION_CACHE: "true"
+      BACKEND_PORT: 8099
   flashbacks-backend:
     container_name: mm-flashbacks
     image: mm-flashbacks:0.1
@@ -23,15 +24,21 @@ services:
       - /volume1/FamilyMedia:/media:ro
       - /volume1/Docker/MagicMirror:/cache
     environment:
-      - TZ=Europe/Vilnius
-      - MEDIA_ROOT=/media
-      - CACHE_DIR=/cache/flashbacks-cache
-      - STREAM_COUNT=6
-      - ALBUM_EXPOSE_SEC=160
-      - COLLAGE_GRID_ROWS=3
-      - COLLAGE_GRID_COLS=3 
-      - OUTPUT_WIDTH=1920
-      - OUTPUT_HEIGHT=1080
-      - VVT_STOP_NAME=Umėdžių st.
-      - VVT_LIMIT=10
+      TZ: Europe/Vilnius
+      MEDIA_ROOT: /media
+      CACHE_DIR: /cache/flashbacks-cache
+      STREAM_COUNT: "6"
+      ALBUM_EXPOSE_SEC: "160"
+      COLLAGE_GRID_ROWS: "3"
+      COLLAGE_GRID_COLS: "3"
+      OUTPUT_WIDTH: "1920"
+      OUTPUT_HEIGHT: "1080"
+      VVT_STOP_NAME: Umėdžių st.
+      VVT_LIMIT: "10"
+      WEATHER_LAT: "54.6401508"
+      WEATHER_LON: "25.2059223"
+      WEATHER_UNIT: celsius
+      WEATHER_INTERVAL_MIN: "10"
+      WEATHER_HISTORY_HOURS: "72"
+      BACKEND_PORT: 8099
 

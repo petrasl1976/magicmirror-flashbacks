@@ -1,6 +1,8 @@
 .vvt-wrap {
   padding: 6px 10px;
   max-width: 520px;
+  position: relative;
+  z-index: 3;
 }
 
 .vvt-title {
