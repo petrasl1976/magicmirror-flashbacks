@@ -1074,10 +1074,7 @@ app.get("/next", async (req, res) => {
   }
 });
 
-const BACKEND_PORT = Number(process.env.BACKEND_PORT);
-if (!Number.isFinite(BACKEND_PORT)) {
-  throw new Error("BACKEND_PORT is required (set via docker-compose)");
-}
+const BACKEND_PORT = 8099;
 app.listen(BACKEND_PORT, () => {
   if (!ROOT_EXISTS) {
     console.error(`[flashbacks] ERROR: ROOT_DIR missing: ${ROOT_DIR}`);
