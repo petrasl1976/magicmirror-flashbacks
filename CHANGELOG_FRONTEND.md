@@ -22,4 +22,10 @@
 2026-02-20T21:45:00Z weather: round temps in default module
 2026-02-20T21:55:00Z weather forecast: tighten icon spacing
 2026-02-20T22:05:00Z weather trends: past line uses hourly points
+2026-02-21T01:10:00Z weather trends: extend past line to first marker
+2026-02-21T01:25:00Z weather trends: fill current marker
+2026-02-21T01:35:00Z weather trends: increase current label size
+2026-02-21T01:45:00Z weather trends: increase current label size more
+2026-02-21T01:55:00Z weather trends: match current label size to forecast
+2026-02-21T02:05:00Z weather trends: match current label font
 

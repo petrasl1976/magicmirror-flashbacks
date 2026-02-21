@@ -31,6 +31,13 @@ Module.register("MMM-WeatherTrends", {
     return ["MMM-WeatherTrends.css"];
   },
 
+  _getUiFontFamily() {
+    const body = document.body;
+    if (!body) return "sans-serif";
+    const family = window.getComputedStyle(body).fontFamily;
+    return family || "sans-serif";
+  },
+
   getDom() {
     const wrap = document.createElement("div");
     wrap.className = "wtr-wrap";
@@ -161,6 +168,7 @@ Module.register("MMM-WeatherTrends", {
       }, null);
     };
     const futureLineSamples = futureSamples.slice();
+    const pastLineSamplesForLine = pastLineSamples.slice();
     const markers = offsetsDays
       .map((offsetDays) => {
         const ts = now + offsetDays * dayMs;
@@ -176,6 +184,9 @@ Module.register("MMM-WeatherTrends", {
         if (offsetDays > 0 && nearest.ts && nearest.ts !== ts) {
           futureLineSamples.push({ ts, temp: nearest.temp, feels: nearest.feels, _virtual: true });
         }
+        if (offsetDays < 0 && nearest.ts && nearest.ts !== ts) {
+          pastLineSamplesForLine.push({ ts, temp: nearest.temp, feels: nearest.feels, _virtual: true });
+        }
         const x = xFor(ts);
         const xLabel = x;
         return {
@@ -188,6 +199,7 @@ Module.register("MMM-WeatherTrends", {
       })
       .filter(Boolean);
     futureLineSamples.sort((a, b) => a.ts - b.ts);
+    pastLineSamplesForLine.sort((a, b) => a.ts - b.ts);
 
     ctx.shadowBlur = 0;
 
@@ -196,7 +208,7 @@ Module.register("MMM-WeatherTrends", {
     ctx.strokeStyle = "rgba(0,0,0,0.9)";
     ctx.lineWidth = 6;
     ctx.beginPath();
-    pastLineSamples.forEach((s, idx) => {
+    pastLineSamplesForLine.forEach((s, idx) => {
       const x = xFor(s.ts);
       const y = yFor(s.temp);
       if (idx === 0) ctx.moveTo(x, y);
@@ -208,7 +220,7 @@ Module.register("MMM-WeatherTrends", {
     ctx.shadowColor = strongShadowPath;
     ctx.shadowBlur = 14;
     ctx.beginPath();
-    pastLineSamples.forEach((s, idx) => {
+    pastLineSamplesForLine.forEach((s, idx) => {
       const x = xFor(s.ts);
       const y = yFor(s.temp);
       if (idx === 0) ctx.moveTo(x, y);
@@ -248,7 +260,7 @@ Module.register("MMM-WeatherTrends", {
     ctx.strokeStyle = "rgba(0,0,0,0.9)";
     ctx.lineWidth = 6;
     ctx.beginPath();
-    pastLineSamples.forEach((s, idx) => {
+    pastLineSamplesForLine.forEach((s, idx) => {
       const x = xFor(s.ts);
       const y = yFor(s.feels);
       if (idx === 0) ctx.moveTo(x, y);
@@ -260,7 +272,7 @@ Module.register("MMM-WeatherTrends", {
     ctx.shadowColor = strongShadowPath;
     ctx.shadowBlur = 14;
     ctx.beginPath();
-    pastLineSamples.forEach((s, idx) => {
+    pastLineSamplesForLine.forEach((s, idx) => {
       const x = xFor(s.ts);
       const y = yFor(s.feels);
       if (idx === 0) ctx.moveTo(x, y);
@@ -302,13 +314,14 @@ Module.register("MMM-WeatherTrends", {
       const yTemp = yFor(m.temp);
       const yFeels = yFor(m.feels);
       const r = 6;
+      const isCurrent = m.offsetDays === 0;
       const isFuture = m.offsetDays > 0;
       const pastWhite = "rgba(255,255,255,0.98)";
       const pastYellow = "rgba(255,204,0,0.98)";
       const futureWhite = "rgba(255,255,255,0.65)";
       const futureYellow = "rgba(255,204,0,0.65)";
-      const tempStroke = isFuture ? futureWhite : pastWhite;
-      const feelsStroke = isFuture ? futureYellow : pastYellow;
+      const tempStroke = isCurrent ? "#ffffff" : (isFuture ? futureWhite : pastWhite);
+      const feelsStroke = isCurrent ? "#ffcc00" : (isFuture ? futureYellow : pastYellow);
       ctx.shadowBlur = 0;
       ctx.lineWidth = 4;
       ctx.strokeStyle = "rgba(0,0,0,0.9)";
@@ -323,18 +336,28 @@ Module.register("MMM-WeatherTrends", {
       ctx.beginPath();
       ctx.arc(m.x, yTemp, r, 0, Math.PI * 2);
       ctx.stroke();
+      if (isCurrent) {
+        ctx.fillStyle = tempStroke;
+        ctx.fill();
+      }
       ctx.strokeStyle = feelsStroke;
       ctx.beginPath();
       ctx.arc(m.x, yFeels, r, 0, Math.PI * 2);
       ctx.stroke();
+      if (isCurrent) {
+        ctx.fillStyle = feelsStroke;
+        ctx.fill();
+      }
     });
 
     // Draw labels below curves
+    const uiFontFamily = this._getUiFontFamily();
     markers.forEach((m) => {
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.font = "22px sans-serif";
+      const isCurrent = m.offsetDays === 0;
       const isFuture = m.offsetDays > 0;
+      ctx.font = isCurrent ? `600 28px ${uiFontFamily}` : `22px ${uiFontFamily}`;
       const tempUpOffset = 52;
       const feelsUpOffset = 36;
       const tempDownOffset = 26;
