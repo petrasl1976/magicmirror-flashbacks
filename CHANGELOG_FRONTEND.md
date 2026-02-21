@@ -59,4 +59,7 @@
 2026-02-21T21:35:00Z weather trends: enlarge chart frame
 2026-02-21T21:45:00Z weather trends: shift chart left
 2026-02-21T22:05:00Z debug: remove layout outlines
+2026-02-21T22:20:00Z vvt: fade list downward
+2026-02-21T22:30:00Z vvt: increase list transparency
+2026-02-21T22:40:00Z vvt: color by minutes threshold
 

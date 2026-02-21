@@ -58,17 +58,18 @@ Module.register("MMM-PL-VVT", {
     }
 
     const items = this._withComputedMinutes(this.items);
+    const lastIdx = Math.max(1, items.length - 1);
     items.forEach((item, idx) => {
       const row = document.createElement("div");
       row.className = "vvt-row";
       const strong = idx < 5;
-      let opacity = 1;
-      if (!strong) {
-        const fadeIdx = idx - 4;
-        opacity = Math.max(0.4, 1 - fadeIdx * 0.08);
-      }
+      const t = idx / lastIdx;
+      let opacity = Math.max(0.2, 1 - t * 0.8);
       row.style.opacity = String(opacity);
       if (strong) row.classList.add("vvt-row-strong");
+      const minutesVal = Number(item.minutes);
+      const isSoon = Number.isFinite(minutesVal) && minutesVal <= 15;
+      row.classList.add(isSoon ? "vvt-row-soon" : "vvt-row-muted");
 
       const mins = document.createElement("span");
       mins.className = "vvt-mins";
