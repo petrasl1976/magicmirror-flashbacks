@@ -114,8 +114,43 @@
 
 /* Calendar width */
 .module.calendar {
-  max-width: 550px;
+  width: 50vw;
+  max-width: 50vw;
   margin-top: -12px;
+}
+.module.calendar .calendar {
+  margin-left: -120px;
+  padding-left: 0 !important;
+}
+
+/* Calendar layout: keep time on one line, allow titles to wrap */
+.module.calendar table {
+  width: 100%;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  border-collapse: collapse !important;
+}
+.module.calendar td {
+  padding: 0 !important;
+}
+.module.calendar td.time {
+  white-space: nowrap;
+  padding-left: 0 !important;
+  padding-right: 8px !important;
+  text-align: left !important;
+  width: 1% !important;
+  max-width: 1% !important;
+}
+.module.calendar .event-wrapper td.title {
+  padding-left: 0 !important;
+  width: 99% !important;
+  white-space: nowrap !important;
+}
+.module.calendar .title {
+  padding-left: 0 !important;
+}
+.module.calendar .title br {
+  display: none !important;
 }
 
 .calendar .dimmed,
@@ -129,5 +164,31 @@
   position: fixed;
   right: 0;
   bottom: 16px;
+}
+
+/* DEBUG layout outlines */
+.module.clock,
+.module.calendar,
+.module.MMM-PL-VVT,
+.module.MMM-WeatherTrends,
+.module.weather {
+  outline: 2px dashed rgba(0, 200, 255, 0.7);
+  outline-offset: 6px;
+}
+.module.MMM-PL-Flashbacks .fb-overlay,
+.module.MMM-PL-Flashbacks .fb-path,
+.module.MMM-PL-Flashbacks .fb-line {
+  outline: 1px dashed rgba(255, 200, 0, 0.7);
+  outline-offset: 4px;
+}
+.module.MMM-PL-VVT .vvt-wrap {
+  outline: 2px dashed rgba(0, 200, 255, 0.7);
+  outline-offset: 6px;
+}
+.fb-line-current,
+.fb-line-prev,
+.fb-line-older {
+  outline: 2px dashed rgba(255, 0, 0, 0.85) !important;
+  outline-offset: 4px !important;
 }
 

@@ -76,9 +76,10 @@ var config = {
         dateFormat: "MMM D",
         dateEndFormat: "MMM D",
         fullDayEventDateFormat: "MMM D",
-        maximumEntries: 10,
-        maximumNumberOfDays: 30,
+        maximumEntries: 6,
+        maximumNumberOfDays: 365,
         colored: true,
+        displaySymbol: false,
         showLocation: false,
         wrapEvents: true,
 calendars: [

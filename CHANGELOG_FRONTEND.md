@@ -30,4 +30,21 @@
 2026-02-21T02:05:00Z weather trends: match current label font
 2026-02-21T02:15:00Z calendar: move time to first column
 2026-02-21T02:25:00Z calendar: include default module changes
+2026-02-21T02:35:00Z calendar: widen frame and keep time unwrapped
+2026-02-21T02:45:00Z calendar: hide event symbols
+2026-02-21T02:55:00Z calendar: shift left after hiding icons
+2026-02-21T03:05:00Z debug: add layout outlines
+2026-02-21T03:15:00Z debug: add outlines for vvt and path
+2026-02-21T03:25:00Z debug: strengthen path outline
+2026-02-21T03:35:00Z debug: outline flashbacks lines globally
+2026-02-21T04:05:00Z calendar: pull text closer to left edge
+2026-02-21T04:15:00Z calendar: shift further left
+2026-02-21T04:25:00Z calendar: align text to left edge
+2026-02-21T04:35:00Z calendar: left-align time column
+2026-02-21T04:45:00Z calendar: reduce time-title gap
+2026-02-21T05:00:00Z calendar: collapse padding between time and title
+2026-02-21T05:10:00Z calendar: keep titles on one line
+2026-02-21T05:20:00Z calendar: add gap and flatten title breaks
+2026-02-21T05:30:00Z calendar: show up to six entries
+2026-02-21T05:40:00Z calendar: extend days window for more entries
 
