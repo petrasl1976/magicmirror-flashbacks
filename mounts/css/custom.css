@@ -33,6 +33,7 @@
   font-size: 2.6em !important;
 }
 
+
 /* Strong text outline for readability on any background */
 .module.clock *,
 .module.weather *,
@@ -45,6 +46,7 @@
     0 0 14px rgba(0, 0, 0, 0.8);
 }
 
+
 /* Forecast list larger */
 .module.weather .weather-icon,
 .module.weather .max-temp,
@@ -54,6 +56,19 @@
 .module.weather .uv-index,
 .module.weather .day {
   font-size: 1.8em !important;
+}
+
+/* Hide weather headers/location lines */
+.module.weather .module-header,
+.module.weather .header,
+.module.weather .weatherheader,
+.module.weather hr {
+  display: none !important;
+}
+.module.weather .weatherforecast table,
+.module.weather .weatherforecast tr {
+  border-top: none !important;
+  border-bottom: none !important;
 }
 
 /* Highlight "Today" row in forecast (best-effort selectors) */
@@ -77,6 +92,14 @@
   color: #ffcc00 !important;
 }
 
+/* Tighten forecast icons toward temps */
+.module.weather .weather-icon {
+  padding-right: 14px !important;
+}
+.module.weather .min-temp {
+  padding-left: 8px !important;
+}
+
 /* Calendar larger (calendar module uses .calendar class) */
 .calendar,
 .module.calendar .calendar,
@@ -89,9 +112,22 @@
   font-size: 1.4em !important;
 }
 
+/* Calendar width */
+.module.calendar {
+  max-width: 550px;
+  margin-top: -12px;
+}
+
 .calendar .dimmed,
 .module.calendar .calendar .dimmed {
   font-size: 1.2em !important;
 }
 
-/* Layer VVT over the map in bottom_left region */
+
+/* Stick WeatherTrends chart to bottom-right corner */
+.module.MMM-WeatherTrends {
+  position: fixed;
+  right: 0;
+  bottom: 16px;
+}
+

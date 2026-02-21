@@ -188,7 +188,7 @@ Module.register("MMM-PL-Flashbacks", {
         if (this.overlayEl && pathFromState) {
           const prev = this.history[0] || "";
           const older = this.history[1] || "";
-          this.overlayEl.innerHTML = this._formatOverlayHtml(pathFromState, prev, older);
+          this.overlayEl.innerHTML = this._formatOverlayHtml(pathFromState, prev, older, data);
         }
       })
       .catch(() => {
@@ -215,13 +215,23 @@ Module.register("MMM-PL-Flashbacks", {
     return `<span class="fb-year">${year}</span>/${rest}`;
   },
 
-  _formatOverlayHtml(currentPath, prevPath, olderPath) {
+  _formatOverlayHtml(currentPath, prevPath, olderPath, data) {
     if (!currentPath) return "";
+    const stats = this._formatStatsLine(data);
     const lines = [];
-    lines.push(`<div class="fb-line fb-line-current">${this._formatCurrentPath(currentPath)}</div>`);
+    lines.push(`<div class="fb-line fb-line-current">${this._formatCurrentPath(currentPath)}${stats}</div>`);
     if (prevPath) lines.push(`<div class="fb-line fb-line-prev">${this._escapeHtml(prevPath)}</div>`);
     if (olderPath) lines.push(`<div class="fb-line fb-line-older">${this._escapeHtml(olderPath)}</div>`);
     return lines.join("");
+  },
+
+  _formatStatsLine(data) {
+    const total = data && data.libraryAlbumsTotal;
+    const cached = data && data.libraryAlbumsCached;
+    const cachedFiles = data && data.cachedAlbumFilesCount;
+    const statsParts = [total, cached, cachedFiles].filter((v) => v !== null && v !== undefined && v !== "");
+    if (!statsParts.length) return "";
+    return this._escapeHtml(` [ ${statsParts.join(" | ")} ]`);
   },
 
   _overviewLabel(baseLabel, data) {
@@ -286,7 +296,7 @@ Module.register("MMM-PL-Flashbacks", {
       const pathFromState = this._labelFor(current, this.state, "COLLAGE");
       const prev = this.history[0] || "";
       const older = this.history[1] || "";
-      const pathToShow = this._formatOverlayHtml(pathFromState, prev, older) || "[path unavailable]";
+      const pathToShow = this._formatOverlayHtml(pathFromState, prev, older, this.state) || "[path unavailable]";
       if (this.overlayEl) this.overlayEl.innerHTML = pathToShow;
       if (current.type === "stream" && pathFromState && pathFromState !== this.history[0]) {
         this.history.unshift(pathFromState);
@@ -299,9 +309,11 @@ Module.register("MMM-PL-Flashbacks", {
       this._handleLoadError(current);
     };
 
+    // wait for fade-out to finish before swapping src
+    const swapDelay = Math.max(0, Number(this.config.fadeMs) || 0);
     setTimeout(() => {
       this.imgEl.src = url;
-    }, Math.min(200, this.config.fadeMs));
+    }, swapDelay);
   },
 });
 

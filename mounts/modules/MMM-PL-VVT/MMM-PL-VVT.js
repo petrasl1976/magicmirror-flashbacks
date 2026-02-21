@@ -14,9 +14,12 @@ Module.register("MMM-PL-VVT", {
     this.lastError = null;
     this.stopLabel = this.config.stopName;
     this._timer = null;
+    this._tickTimer = null;
+    this._lastFetchAt = 0;
     this._baseUrl = this._getBaseUrl();
     this._fetch();
     this._timer = setInterval(() => this._fetch(), this.config.refreshSec * 1000);
+    this._tickTimer = setInterval(() => this.updateDom(0), 60 * 1000);
   },
 
   _getBaseUrl() {
@@ -54,11 +57,17 @@ Module.register("MMM-PL-VVT", {
       return wrap;
     }
 
-    this.items.forEach((item, idx) => {
+    const items = this._withComputedMinutes(this.items);
+    items.forEach((item, idx) => {
       const row = document.createElement("div");
       row.className = "vvt-row";
       const strong = idx < 5;
-      row.style.opacity = String(strong ? 1 : Math.max(0.75, 1 - idx * 0.03));
+      let opacity = 1;
+      if (!strong) {
+        const fadeIdx = idx - 4;
+        opacity = Math.max(0.4, 1 - fadeIdx * 0.08);
+      }
+      row.style.opacity = String(opacity);
       if (strong) row.classList.add("vvt-row-strong");
 
       const mins = document.createElement("span");
@@ -82,6 +91,19 @@ Module.register("MMM-PL-VVT", {
     return wrap;
   },
 
+  _withComputedMinutes(items) {
+    const elapsedMin = this._lastFetchAt
+      ? Math.floor((Date.now() - this._lastFetchAt) / 60000)
+      : 0;
+    return (items || []).map((item) => {
+      const base = Number(item.minutes);
+      if (!Number.isFinite(base)) return item;
+      const adjusted = Math.max(0, base - elapsedMin);
+      return { ...item, minutes: adjusted };
+    });
+  },
+
+
   _fetch() {
     const stopId = (this.config.stopId || "").trim();
     const qs = stopId
@@ -98,6 +120,7 @@ Module.register("MMM-PL-VVT", {
         this.items = (data && data.items) ? data.items : [];
         this.stopLabel = (data && data.stopName) ? data.stopName : this.config.stopName;
         this.lastError = null;
+        this._lastFetchAt = Date.now();
         this.updateDom(0);
       })
       .catch(() => {

@@ -5,7 +5,7 @@ var config = {
   address: "0.0.0.0",
   port: 8080,
   ipWhitelist: [],
-  language: "en",
+  language: "lt",
   timeFormat: 24,
   units: "metric",
   modules: [
@@ -14,7 +14,7 @@ var config = {
   position: "fullscreen_below",
   config: {
     backendPort: BACKEND_PORT,
-    fadeMs: 500,
+    fadeMs: 2500,
     collageOverview: true,
     collageSequence: true,
     collageEnd: true
@@ -37,9 +37,10 @@ var config = {
   config: {
     weatherProvider: "openmeteo",
     type: "current",
-    lat: 54.6872,
-    lon: 25.2797,
-    location: "Vilnius"
+    lat: 54.6401508,
+    lon: 25.2059223,
+    location: "Vilnius",
+    roundTemp: true
   }
 },
 {
@@ -48,10 +49,11 @@ var config = {
   config: {
     weatherProvider: "openmeteo",
     type: "forecast",
-    lat: 54.6872,
-    lon: 25.2797,
+    lat: 54.6401508,
+    lon: 25.2059223,
     location: "Vilnius",
-    maxNumberOfDays: 5
+    maxNumberOfDays: 5,
+    roundTemp: true
   }
 },
 {
@@ -59,7 +61,7 @@ var config = {
   position: "bottom_right",
   config: {
     backendPort: BACKEND_PORT,
-    historyHours: 72,
+    historyHours: 168,
     refreshSec: 600,
     width: 520,
     height: 220
@@ -69,9 +71,11 @@ var config = {
     {
       module: "calendar",
       position: "top_left",
-      header: "Kalendorius",
       config: {
         timeFormat: "absolute",
+        dateFormat: "MMM D",
+        dateEndFormat: "MMM D",
+        fullDayEventDateFormat: "MMM D",
         maximumEntries: 10,
         maximumNumberOfDays: 30,
         colored: true,
@@ -80,7 +84,7 @@ var config = {
 calendars: [
   {
     symbol: "calendar",
-    url: FAMILY_CALENDAR_URL,
+    url: "https://calendar.google.com/calendar/ical/51664cc4c639109c4c8c6ff082526a9cd504a7d8c067ec29a2cf2499ce9dbff1%40group.calendar.google.com/private-43e82f4f3ae953fd21f197a53c277028/basic.ics",
     name: "Family",
     color: "#ffffff"
   },
