@@ -28,4 +28,6 @@
 2026-02-21T01:45:00Z weather trends: increase current label size more
 2026-02-21T01:55:00Z weather trends: match current label size to forecast
 2026-02-21T02:05:00Z weather trends: match current label font
+2026-02-21T02:15:00Z calendar: move time to first column
+2026-02-21T02:25:00Z calendar: include default module changes
 

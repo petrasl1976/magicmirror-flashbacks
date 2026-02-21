@@ -3,7 +3,7 @@
 **/backend/state/
 **/.DS_Store
 mounts/modules/default/**
-!mounts/modules/default/calendar/
-!mounts/modules/default/calendar/lt-holidays-2026.ics
+!mounts/modules/default/calendar/**
 mounts/config/config.secret.js
+DEPLOY_LOG.txt
 
