@@ -63,4 +63,5 @@
 2026-02-21T22:30:00Z vvt: increase list transparency
 2026-02-21T22:40:00Z vvt: color by minutes threshold
 2026-02-21T22:55:00Z flashbacks: dim stats metadata
+2026-02-21T23:15:00Z vvt: prefer configured stop label
 

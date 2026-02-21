@@ -32,7 +32,7 @@ services:
       COLLAGE_GRID_COLS: "3"
       OUTPUT_WIDTH: "1920"
       OUTPUT_HEIGHT: "1080"
-      VVT_STOP_NAME: Umėdžių st.
+      VVT_STOP_NAME: Vaduvos st.
       VVT_LIMIT: "10"
       WEATHER_LAT: "54.6401508"
       WEATHER_LON: "25.2059223"

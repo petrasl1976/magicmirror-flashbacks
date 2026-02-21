@@ -119,7 +119,7 @@ Module.register("MMM-PL-VVT", {
       })
       .then((data) => {
         this.items = (data && data.items) ? data.items : [];
-        this.stopLabel = (data && data.stopName) ? data.stopName : this.config.stopName;
+        this.stopLabel = this.config.stopName || (data && data.stopName) || this.stopLabel;
         this.lastError = null;
         this._lastFetchAt = Date.now();
         this.updateDom(0);
