@@ -231,7 +231,7 @@ Module.register("MMM-PL-Flashbacks", {
     const cachedFiles = data && data.cachedAlbumFilesCount;
     const statsParts = [total, cached, cachedFiles].filter((v) => v !== null && v !== undefined && v !== "");
     if (!statsParts.length) return "";
-    return this._escapeHtml(` [ ${statsParts.join(" | ")} ]`);
+    return `<span class="fb-stats">${this._escapeHtml(` [ ${statsParts.join(" | ")} ]`)}</span>`;
   },
 
   _overviewLabel(baseLabel, data) {
