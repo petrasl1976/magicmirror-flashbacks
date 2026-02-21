@@ -47,4 +47,16 @@
 2026-02-21T05:20:00Z calendar: add gap and flatten title breaks
 2026-02-21T05:30:00Z calendar: show up to six entries
 2026-02-21T05:40:00Z calendar: extend days window for more entries
+2026-02-21T05:50:00Z weather trends: use raw history samples for past curve
+2026-02-21T16:40:00Z weather trends: refresh every 15 minutes
+2026-02-21T17:05:00Z weather trends: smooth curve and fade to edges
+2026-02-21T17:20:00Z weather trends: stronger center emphasis
+2026-02-21T17:35:00Z weather trends: match marker/label intensity
+2026-02-21T18:00:00Z weather trends: add current horizontal guides
+2026-02-21T21:05:00Z weather trends: fade guides to edges
+2026-02-21T21:15:00Z weather trends: boost center emphasis
+2026-02-21T21:25:00Z weather trends: boost center emphasis more
+2026-02-21T21:35:00Z weather trends: enlarge chart frame
+2026-02-21T21:45:00Z weather trends: shift chart left
+2026-02-21T22:05:00Z debug: remove layout outlines
 

@@ -13,4 +13,6 @@
 2026-02-16T21:00:00Z weather bootstrap logs and force 7-day past_days
 2026-02-16T21:10:00Z weather: remove bootstrap code, keep rolling history only
 2026-02-16T21:20:00Z weather trends include current temp/feels
+2026-02-21T16:25:00Z weather trends: add history/forecast cache from open-meteo
+2026-02-21T16:40:00Z weather trends: set 15-min fetch intervals
 

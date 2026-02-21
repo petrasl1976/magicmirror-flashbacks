@@ -62,9 +62,9 @@ var config = {
   config: {
     backendPort: BACKEND_PORT,
     historyHours: 168,
-    refreshSec: 600,
-    width: 520,
-    height: 220
+    refreshSec: 60,
+    width: 700,
+    height: 260
   }
 },
 { module: "clock", position: "top_left" },

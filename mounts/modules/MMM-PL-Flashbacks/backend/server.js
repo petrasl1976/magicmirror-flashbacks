@@ -43,6 +43,9 @@ const WEATHER_LON = Number(process.env.WEATHER_LON || 25.2797);
 const WEATHER_UNIT = String(process.env.WEATHER_UNIT || "celsius");
 const WEATHER_INTERVAL_MIN = Number(process.env.WEATHER_INTERVAL_MIN || 60);
 const WEATHER_HISTORY_HOURS = Number(process.env.WEATHER_HISTORY_HOURS || 72);
+const WEATHER_FORECAST_DAYS = Number(process.env.WEATHER_FORECAST_DAYS || 4);
+const WEATHER_HISTORY_REFRESH_MIN = Number(process.env.WEATHER_HISTORY_REFRESH_MIN || 60);
+const WEATHER_FORECAST_REFRESH_MIN = Number(process.env.WEATHER_FORECAST_REFRESH_MIN || 15);
 
 // Atmetam tik #Recycle (ir papildomai tipines šiukšles)
 const EXCLUDED_TOPLEVEL = new Set(["#Recycle"]);
@@ -129,6 +132,11 @@ let gtfsCache = null; // { stopName, updatedAt, expiresAt, stopsById, stopIds, r
 
 const WEATHER_CACHE_FILE = path.join(CACHE_DIR, "weather-trends.json");
 let weatherSamples = [];
+let weatherHistorySamples = [];
+let weatherForecastSamples = [];
+let weatherCurrent = null;
+let weatherHistoryUpdatedAt = null;
+let weatherForecastUpdatedAt = null;
 
 function downloadGtfs() {
   return new Promise((resolve, reject) => {
@@ -212,6 +220,13 @@ function dateYmd(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}${m}${d}`;
+}
+
+function dateYmdDash(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function dayIndex(date) {
@@ -474,11 +489,84 @@ async function fetchWeatherSample() {
 async function recordWeatherSample() {
   try {
     const sample = await fetchWeatherSample();
+    weatherCurrent = sample;
     weatherSamples.push(sample);
     weatherSamples = trimWeatherSamples(weatherSamples);
     await writeCacheFile(WEATHER_CACHE_FILE, weatherSamples);
   } catch (e) {
     console.warn("[flashbacks] WARN: weather sample failed", { err: String(e) });
+  }
+}
+
+async function fetchWeatherHistory() {
+  const now = new Date();
+  const start = new Date(now.getTime() - WEATHER_HISTORY_HOURS * 60 * 60 * 1000);
+  const startYmd = dateYmdDash(start);
+  const endYmd = dateYmdDash(now);
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&hourly=temperature_2m,apparent_temperature&start_date=${encodeURIComponent(startYmd)}&end_date=${encodeURIComponent(endYmd)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const resp = await fetch(url, { cache: "no-store" });
+  if (!resp.ok) throw new Error(`weather_history_${resp.status}`);
+  const data = await resp.json();
+  const times = data && data.hourly && Array.isArray(data.hourly.time) ? data.hourly.time : [];
+  const temps = data && data.hourly ? data.hourly.temperature_2m : [];
+  const feels = data && data.hourly ? data.hourly.apparent_temperature : [];
+  const samples = [];
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    const temp = temps && typeof temps[i] === "number" ? temps[i] : null;
+    const feel = feels && typeof feels[i] === "number" ? feels[i] : null;
+    if (temp === null || feel === null) continue;
+    const ts = new Date(t).getTime();
+    if (!Number.isFinite(ts)) continue;
+    samples.push({ ts, temp, feels: feel });
+  }
+  weatherHistorySamples = trimWeatherSamples(samples);
+  weatherHistoryUpdatedAt = nowIso();
+}
+
+async function refreshWeatherHistory() {
+  try {
+    await fetchWeatherHistory();
+  } catch (e) {
+    console.warn("[flashbacks] WARN: weather history failed", { err: String(e) });
+  }
+}
+
+async function fetchWeatherForecast() {
+  const days = Math.max(1, Number.isFinite(WEATHER_FORECAST_DAYS) ? WEATHER_FORECAST_DAYS : 4);
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature&minutely_15=temperature_2m,apparent_temperature&forecast_days=${encodeURIComponent(days)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const resp = await fetch(url, { cache: "no-store" });
+  if (!resp.ok) throw new Error(`weather_forecast_${resp.status}`);
+  const data = await resp.json();
+  if (data && data.current && typeof data.current.temperature_2m === "number" && typeof data.current.apparent_temperature === "number") {
+    weatherCurrent = {
+      ts: Date.now(),
+      temp: data.current.temperature_2m,
+      feels: data.current.apparent_temperature
+    };
+  }
+  const times = data && data.minutely_15 && Array.isArray(data.minutely_15.time) ? data.minutely_15.time : [];
+  const temps = data && data.minutely_15 ? data.minutely_15.temperature_2m : [];
+  const feels = data && data.minutely_15 ? data.minutely_15.apparent_temperature : [];
+  const samples = [];
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    const temp = temps && typeof temps[i] === "number" ? temps[i] : null;
+    const feel = feels && typeof feels[i] === "number" ? feels[i] : null;
+    if (temp === null || feel === null) continue;
+    const ts = new Date(t).getTime();
+    if (!Number.isFinite(ts)) continue;
+    samples.push({ ts, temp, feels: feel });
+  }
+  weatherForecastSamples = samples;
+  weatherForecastUpdatedAt = nowIso();
+}
+
+async function refreshWeatherForecast() {
+  try {
+    await fetchWeatherForecast();
+  } catch (e) {
+    console.warn("[flashbacks] WARN: weather forecast failed", { err: String(e) });
   }
 }
 
@@ -489,6 +577,10 @@ function startWeatherLogger() {
 }
 
 startWeatherLogger();
+refreshWeatherHistory();
+refreshWeatherForecast();
+setInterval(refreshWeatherHistory, Math.max(10, WEATHER_HISTORY_REFRESH_MIN) * 60 * 1000);
+setInterval(refreshWeatherForecast, Math.max(5, WEATHER_FORECAST_REFRESH_MIN) * 60 * 1000);
 
 async function listDirs(absDir) {
   try {
@@ -910,13 +1002,20 @@ app.get("/collage/overview", async (req, res) => {
 app.get("/weather/trends", (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   setCors(res);
-  const samples = trimWeatherSamples(weatherSamples);
-  weatherSamples = samples;
+  const trimmedSamples = trimWeatherSamples(weatherSamples);
+  weatherSamples = trimmedSamples;
+  const samples = weatherHistorySamples && weatherHistorySamples.length ? weatherHistorySamples : trimmedSamples;
+  const forecast = Array.isArray(weatherForecastSamples) ? weatherForecastSamples : [];
+  const current = weatherCurrent || (samples.length ? samples[samples.length - 1] : null);
   res.json({
     updatedAt: nowIso(),
     historyHours: WEATHER_HISTORY_HOURS,
     intervalMin: WEATHER_INTERVAL_MIN,
-    samples
+    samples,
+    forecast,
+    current,
+    historyUpdatedAt: weatherHistoryUpdatedAt,
+    forecastUpdatedAt: weatherForecastUpdatedAt
   });
 });
 

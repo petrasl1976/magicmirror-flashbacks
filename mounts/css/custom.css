@@ -163,32 +163,7 @@
 .module.MMM-WeatherTrends {
   position: fixed;
   right: 0;
+  transform: translateX(-120px);
   bottom: 16px;
-}
-
-/* DEBUG layout outlines */
-.module.clock,
-.module.calendar,
-.module.MMM-PL-VVT,
-.module.MMM-WeatherTrends,
-.module.weather {
-  outline: 2px dashed rgba(0, 200, 255, 0.7);
-  outline-offset: 6px;
-}
-.module.MMM-PL-Flashbacks .fb-overlay,
-.module.MMM-PL-Flashbacks .fb-path,
-.module.MMM-PL-Flashbacks .fb-line {
-  outline: 1px dashed rgba(255, 200, 0, 0.7);
-  outline-offset: 4px;
-}
-.module.MMM-PL-VVT .vvt-wrap {
-  outline: 2px dashed rgba(0, 200, 255, 0.7);
-  outline-offset: 6px;
-}
-.fb-line-current,
-.fb-line-prev,
-.fb-line-older {
-  outline: 2px dashed rgba(255, 0, 0, 0.85) !important;
-  outline-offset: 4px !important;
 }
 
