@@ -7,4 +7,5 @@
 2026-02-21T16:40:00Z weather: set 15-min refresh intervals
 2026-02-21T17:20:00Z weather: extend history to 96h
 2026-02-21T23:15:00Z vvt: set Vaduvos stop name
+2026-02-22T00:05:00Z installer: restore clone-based flow
 
