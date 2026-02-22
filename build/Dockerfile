@@ -16,11 +16,8 @@ WORKDIR ${MM_DIR}
 RUN git clone --depth 1 https://github.com/MagicMirrorOrg/MagicMirror.git . \
  && npm ci --omit=dev --no-audit --no-fund
 
-RUN chown -R node:node /opt/magic_mirror \
- && chmod -R u+rwX /opt/magic_mirror \
- && chmod -R u+rwX /opt/magic_mirror/js
-
-USER node
+# Skip recursive chown to speed up build on NAS
+# Keep running as root since we only read config via bind mounts
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/dumb-init","--"]
