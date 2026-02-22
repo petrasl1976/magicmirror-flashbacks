@@ -6,6 +6,11 @@ SSH to AsusTor and run:
 curl -fsSL https://raw.githubusercontent.com/petrasl1976/magicmirror-flashbacks/main/install.sh | sh
 ```
 
+To install a specific branch:
+```
+BRANCH=fix/weathertrends-first-bubble curl -fsSL https://raw.githubusercontent.com/petrasl1976/magicmirror-flashbacks/main/install.sh | sh
+```
+
 This will:
 - clone or update this repo into `/volume1/Docker/MagicMirror`
 - build the backend image
