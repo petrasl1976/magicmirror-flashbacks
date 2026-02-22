@@ -1,28 +1,24 @@
 ## MagicMirror (custom + backend)
 
 ### Quick install (AsusTor)
-Copy `install.sh` to AsusTor (via SSH) and run it. It will:
+SSH to AsusTor and run:
+```
+curl -fsSL https://raw.githubusercontent.com/petrasl1976/magicmirror-flashbacks/main/install.sh | bash
+```
+
+This will:
 - clone or update this repo into `/volume1/Docker/MagicMirror`
 - build the backend image
 - start both containers (`mmm-pl-backend` and `magicmirror`)
 
-Example:
-```
-scp install.sh user@asustor:/tmp/install.sh
-ssh user@asustor "bash /tmp/install.sh"
-```
+On first run, the installer creates `install.env` with defaults.
+Edit that file to customize media folder, calendar URL, bus stop, and weather
+coordinates. On every run, it re-applies values from `install.env` and
+rebuilds/restarts containers.
 
-### Required configuration
-Before running, update these values on AsusTor:
-- **Media path**: `/volume1/FamilyMedia` (photos location)
-  - `run/docker-compose.yml` → volume mapping
-- **Bus stop** (VVT): stop name and/or stop ID
-  - `run/docker-compose.yml` → `VVT_STOP_NAME`
-  - `mounts/config/config.js` → `stopName`, `stopId`
-- **Weather coordinates**
-  - `mounts/config/config.js` → `lat`, `lon`
-  - `run/docker-compose.yml` → `WEATHER_LAT`, `WEATHER_LON`
-- **Calendar URL**
-  - `mounts/config/config.js` → calendar `url`
-
-Once those are set, re-run `install.sh`.
+If you change values later, you can either re-run `install.sh`, or just rebuild:
+```
+docker build -t mmm-pl-backend:0.1 "/volume1/Docker/MagicMirror/mounts/modules/MMM-PL-Flashbacks/backend"
+cd "/volume1/Docker/MagicMirror/run"
+docker compose up -d --force-recreate mmm-pl-backend magicmirror
+```

@@ -64,4 +64,5 @@
 2026-02-21T22:40:00Z vvt: color by minutes threshold
 2026-02-21T22:55:00Z flashbacks: dim stats metadata
 2026-02-21T23:15:00Z vvt: prefer configured stop label
+2026-02-22T00:20:00Z weather trends: remove unused node helper
 

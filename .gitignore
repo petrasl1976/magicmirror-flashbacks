@@ -6,4 +6,5 @@ mounts/modules/default/**
 !mounts/modules/default/calendar/**
 mounts/config/config.secret.js
 DEPLOY_LOG.txt
+install.env
 
