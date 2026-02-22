@@ -46,6 +46,7 @@ const WEATHER_HISTORY_HOURS = Number(process.env.WEATHER_HISTORY_HOURS || 72);
 const WEATHER_FORECAST_DAYS = Number(process.env.WEATHER_FORECAST_DAYS || 4);
 const WEATHER_HISTORY_REFRESH_MIN = Number(process.env.WEATHER_HISTORY_REFRESH_MIN || 60);
 const WEATHER_FORECAST_REFRESH_MIN = Number(process.env.WEATHER_FORECAST_REFRESH_MIN || 15);
+const LIBRARY_STATS_TTL_MS = Number(process.env.LIBRARY_STATS_TTL_MS || 10 * 60 * 1000);
 
 // Atmetam tik #Recycle (ir papildomai tipines šiukšles)
 const EXCLUDED_TOPLEVEL = new Set(["#Recycle"]);
@@ -137,6 +138,7 @@ let weatherForecastSamples = [];
 let weatherCurrent = null;
 let weatherHistoryUpdatedAt = null;
 let weatherForecastUpdatedAt = null;
+let libraryStatsCache = { updatedAt: 0, total: null, cached: null, cachedFiles: null };
 
 function downloadGtfs() {
   return new Promise((resolve, reject) => {
@@ -690,6 +692,85 @@ async function getAlbumFilesCached(reqId, absAlbumDir) {
   return { files, cacheHit: false, scannedMs: Date.now() - st, sortKey: "filename" };
 }
 
+async function scanAlbumCacheStats() {
+  let cachedAlbums = 0;
+  let cachedFiles = 0;
+  const stack = [CACHE_DIR];
+
+  while (stack.length) {
+    const dir = stack.pop();
+    let entries;
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!e.isFile() || e.name !== "_files.json") continue;
+      try {
+        const raw = await fsp.readFile(full, "utf8");
+        const parsed = JSON.parse(raw);
+        const files = Array.isArray(parsed)
+          ? parsed
+          : (parsed && Array.isArray(parsed.files) ? parsed.files : []);
+        if (files.length) {
+          cachedAlbums += 1;
+          cachedFiles += files.length;
+        }
+      } catch {
+        // ignore bad cache files
+      }
+    }
+  }
+
+  return { cachedAlbums, cachedFiles };
+}
+
+async function getLibraryStats() {
+  const now = Date.now();
+  if (libraryStatsCache.updatedAt && (now - libraryStatsCache.updatedAt) < LIBRARY_STATS_TTL_MS) {
+    return libraryStatsCache;
+  }
+
+  let total = null;
+  try {
+    const reqId = "stats";
+    const { dirs: years } = await getRootDirsCached(reqId);
+    total = 0;
+    for (const year of years) {
+      const yearAbs = path.join(ROOT_DIR, year);
+      const { dirs: events } = await getYearDirsCached(reqId, yearAbs);
+      total += events.length;
+    }
+  } catch {
+    total = null;
+  }
+
+  let cached = null;
+  let cachedFiles = null;
+  try {
+    const stats = await scanAlbumCacheStats();
+    cached = stats.cachedAlbums;
+    cachedFiles = stats.cachedFiles;
+  } catch {
+    cached = null;
+    cachedFiles = null;
+  }
+
+  libraryStatsCache = {
+    updatedAt: now,
+    total,
+    cached,
+    cachedFiles
+  };
+  return libraryStatsCache;
+}
+
 // --- selection logic ---
 function pickRandom(arr) {
   const idx = Math.floor(Math.random() * arr.length);
@@ -1091,6 +1172,7 @@ app.get("/state", async (req, res) => {
     const st = await getActiveSet(reqId);
     await ensureRotateFlags(st);
     const { refreshAtMs, refreshInMs } = refreshInfo(st);
+    const libraryStats = await getLibraryStats();
     res.setHeader("Cache-Control", "no-store");
     setCors(res);
     res.json({
@@ -1103,7 +1185,10 @@ app.get("/state", async (req, res) => {
       windowRel: st.windowRel,
       rotateFlags: st.rotateFlags || [],
       picked: st.picked,
-      filesCount: st.files ? st.files.length : 0
+      filesCount: st.files ? st.files.length : 0,
+      libraryAlbumsTotal: libraryStats.total,
+      libraryAlbumsCached: libraryStats.cached,
+      cachedAlbumFilesCount: libraryStats.cachedFiles
     });
   } catch (e) {
     log(reqId, "ERROR state", { err: String(e) });

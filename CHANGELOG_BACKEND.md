@@ -15,4 +15,5 @@
 2026-02-16T21:20:00Z weather trends include current temp/feels
 2026-02-21T16:25:00Z weather trends: add history/forecast cache from open-meteo
 2026-02-21T16:40:00Z weather trends: set 15-min fetch intervals
+2026-02-22T22:35:00Z flashbacks state: include library cache stats
 
