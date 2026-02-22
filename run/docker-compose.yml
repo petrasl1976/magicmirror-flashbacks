@@ -6,7 +6,10 @@ services:
     network_mode: host
     volumes:
       - /volume1/Docker/MagicMirror/mounts/config:/opt/magic_mirror/config
-      - /volume1/Docker/MagicMirror/mounts/modules:/opt/magic_mirror/modules
+      - /volume1/Docker/MagicMirror/mounts/modules/MMM-PL-Flashbacks:/opt/magic_mirror/modules/MMM-PL-Flashbacks
+      - /volume1/Docker/MagicMirror/mounts/modules/MMM-PL-VVT:/opt/magic_mirror/modules/MMM-PL-VVT
+      - /volume1/Docker/MagicMirror/mounts/modules/MMM-WeatherTrends:/opt/magic_mirror/modules/MMM-WeatherTrends
+      - /volume1/Docker/MagicMirror/mounts/modules/default/calendar:/opt/magic_mirror/modules/default/calendar
       - /volume1/Docker/MagicMirror/mounts/positions.js:/opt/magic_mirror/js/positions.js
       - /volume1/Docker/MagicMirror/mounts/css/custom.css:/opt/magic_mirror/css/custom.css:ro
     environment:
