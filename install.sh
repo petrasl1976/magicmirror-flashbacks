@@ -2,7 +2,7 @@
 set -e
 
 ROOT_DIR="/volume1/Docker/MagicMirror"
-REPO_URL="git@github.com:petrasl1976/magicmirror-flashbacks.git"
+REPO_URL="${REPO_URL:-https://github.com/petrasl1976/magicmirror-flashbacks.git}"
 BRANCH="${BRANCH:-main}"
 CONFIG_FILE="${ROOT_DIR}/mounts/config/config.js"
 COMPOSE_FILE="${ROOT_DIR}/run/docker-compose.yml"
@@ -17,6 +17,7 @@ if [ ! -d "$ROOT_DIR/.git" ]; then
 fi
 
 cd "$ROOT_DIR"
+git remote set-url origin "$REPO_URL"
 git fetch origin
 git checkout "$BRANCH"
 git pull origin "$BRANCH"
