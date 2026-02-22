@@ -14,5 +14,6 @@
 2026-02-22T01:35:00Z installer: remove fallback logic
 2026-02-22T01:45:00Z installer: print config via cat
 2026-02-22T01:55:00Z installer: assume fresh files on pull
+2026-02-22T02:10:00Z installer: build magicmirror image
 2026-02-22T00:25:00Z installer: prompt and persist user config
 

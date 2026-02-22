@@ -55,6 +55,7 @@ fi
 echo "=== Effective configuration: $CONFIG_ENV ==="
 cat "$CONFIG_ENV"
 
+sudo docker build -t run-magicmirror "$ROOT_DIR/build"
 sudo docker build -t mmm-pl-backend:0.1 "$ROOT_DIR/mounts/modules/MMM-PL-Flashbacks/backend"
 cd "$ROOT_DIR/run"
 sudo docker compose up -d --force-recreate mmm-pl-backend magicmirror
