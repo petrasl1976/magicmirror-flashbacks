@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -e
 
 ROOT_DIR="/volume1/Docker/MagicMirror"
 REPO_URL="git@github.com:petrasl1976/magicmirror-flashbacks.git"
@@ -8,7 +8,11 @@ COMPOSE_FILE="${ROOT_DIR}/run/docker-compose.yml"
 CONFIG_ENV="${ROOT_DIR}/install.env"
 
 if [ ! -d "$ROOT_DIR/.git" ]; then
-  git clone "$REPO_URL" "$ROOT_DIR"
+  mkdir -p "$(dirname "$ROOT_DIR")"
+  git clone "$REPO_URL" "$ROOT_DIR" || {
+    echo "ERROR: git clone failed"
+    exit 1
+  }
 fi
 
 cd "$ROOT_DIR"

@@ -3,7 +3,7 @@
 ### Quick install (AsusTor)
 SSH to AsusTor and run:
 ```
-curl -fsSL https://raw.githubusercontent.com/petrasl1976/magicmirror-flashbacks/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/petrasl1976/magicmirror-flashbacks/main/install.sh | sh
 ```
 
 This will:
