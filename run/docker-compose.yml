@@ -9,6 +9,7 @@ services:
       - /volume1/Docker/MagicMirror/mounts/modules/MMM-PL-Flashbacks:/opt/magic_mirror/modules/MMM-PL-Flashbacks
       - /volume1/Docker/MagicMirror/mounts/modules/MMM-PL-VVT:/opt/magic_mirror/modules/MMM-PL-VVT
       - /volume1/Docker/MagicMirror/mounts/modules/MMM-WeatherTrends:/opt/magic_mirror/modules/MMM-WeatherTrends
+      - /volume1/Docker/MagicMirror/mounts/modules/default/calendar/calendar.js:/opt/magic_mirror/modules/default/calendar/calendar.js
       - /volume1/Docker/MagicMirror/mounts/modules/default/calendar/node_helper.js:/opt/magic_mirror/modules/default/calendar/node_helper.js
       - /volume1/Docker/MagicMirror/mounts/modules/default/calendar/lt-holidays-2026.ics:/opt/magic_mirror/modules/default/calendar/lt-holidays-2026.ics
       - /volume1/Docker/MagicMirror/mounts/positions.js:/opt/magic_mirror/js/positions.js

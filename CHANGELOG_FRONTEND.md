@@ -66,4 +66,5 @@
 2026-02-21T23:15:00Z vvt: prefer configured stop label
 2026-02-22T00:20:00Z weather trends: remove unused node helper
 2026-02-24T19:10:00Z calendar: fix events checksum to unblock loading
+2026-02-24T20:05:00Z calendar: force date column first
 
