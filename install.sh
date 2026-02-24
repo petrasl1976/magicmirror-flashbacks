@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Ensure common NAS paths are available for sudo/git/docker
+PATH="/usr/builtin/bin:/opt/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+export PATH
+
 ROOT_DIR="/volume1/Docker/MagicMirror"
 REPO_URL="${REPO_URL:-https://github.com/petrasl1976/magicmirror-flashbacks.git}"
 BRANCH="${BRANCH:-main}"
