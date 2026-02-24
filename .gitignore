@@ -3,7 +3,9 @@
 **/backend/state/
 **/.DS_Store
 mounts/modules/default/**
-!mounts/modules/default/calendar/**
+!mounts/modules/default/
+!mounts/modules/default/calendar/
+!mounts/modules/default/calendar/node_helper.js
 mounts/config/config.secret.js
 DEPLOY_LOG.txt
 install.env

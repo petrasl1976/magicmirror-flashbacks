@@ -18,4 +18,5 @@
 2026-02-22T02:35:00Z installer: allow branch selection
 2026-02-22T02:25:00Z build: skip chown to speed up image
 2026-02-22T00:25:00Z installer: prompt and persist user config
+2026-02-24T19:40:00Z calendar: bind only node helper override
 
