@@ -18,6 +18,9 @@ const CACHE_DIR = process.env.CACHE_DIR
 const ROOT_EXISTS = fs.existsSync(ROOT_DIR);
 
 const STREAM_COUNT = Number(process.env.STREAM_COUNT || 6);
+// Anti-repeat: how many recent sets must pass before an album may show again.
+// 180 sets * ALBUM_EXPOSE_SEC(160s) ~= 8h no-repeat window.
+const HISTORY_SIZE = Number(process.env.HISTORY_SIZE || 180);
 const ALBUM_EXPOSE_SEC = Number(process.env.ALBUM_EXPOSE_SEC || 0);
 const SET_WINDOW_MS = ALBUM_EXPOSE_SEC > 0
   ? ALBUM_EXPOSE_SEC * 1000
@@ -105,6 +108,52 @@ function persistExcludeFile() {
 }
 
 loadExcludeFile();
+
+// --- pick history (anti-repeat), persisted ---
+// Each entry: { key: "year/event", startIndex, at }. Newest at end.
+let pickHistory = [];
+const HISTORY_FILE = path.join(CACHE_DIR, "history.json");
+
+function loadHistoryFile() {
+  try {
+    if (!fs.existsSync(HISTORY_FILE)) return;
+    const raw = fs.readFileSync(HISTORY_FILE, "utf8");
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) {
+      pickHistory = arr
+        .filter((e) => e && typeof e.key === "string")
+        .map((e) => ({ key: e.key, startIndex: Number(e.startIndex) || 0, at: e.at || null }))
+        .slice(-HISTORY_SIZE);
+    }
+  } catch (e) {
+    console.warn("[flashbacks] WARN: failed to load history.json", { err: String(e) });
+  }
+}
+
+function persistHistoryFile() {
+  return writeCacheFile(HISTORY_FILE, pickHistory);
+}
+
+function recordPick(year, eventName, startIndex) {
+  pickHistory.push({ key: eventKey(year, eventName), startIndex, at: nowIso() });
+  if (pickHistory.length > HISTORY_SIZE) {
+    pickHistory = pickHistory.slice(-HISTORY_SIZE);
+  }
+  void persistHistoryFile();
+}
+
+// Event keys shown within the last `spacing` sets — must not repeat yet.
+function recentEventKeys(spacing) {
+  const window = spacing > 0 ? pickHistory.slice(-spacing) : pickHistory;
+  return new Set(window.map((e) => e.key));
+}
+
+// startIndexes already shown for this album (within current history).
+function usedStartsForEvent(key) {
+  return pickHistory.filter((e) => e.key === key).map((e) => e.startIndex);
+}
+
+loadHistoryFile();
 
 // --- tiny helpers ---
 function nowIso() { return new Date().toISOString(); }
@@ -791,6 +840,35 @@ function pickWindow(files, size) {
   return { startIndex, window };
 }
 
+// Like pickWindow but avoids start positions whose window overlaps any
+// previously shown window (usedStarts) for the same album, so revisits show
+// fresh photos. Falls back to any start if every window has been used.
+function pickWindowAvoiding(files, size, usedStarts) {
+  const n = files.length;
+  if (n === 0) return { startIndex: 0, window: [] };
+  if (n <= size || !usedStarts.length) return pickWindow(files, size);
+
+  const used = new Set();
+  for (const s of usedStarts) {
+    for (let i = 0; i < size; i++) used.add((s + i) % n);
+  }
+  const free = [];
+  for (let s = 0; s < n; s++) {
+    let ok = true;
+    for (let i = 0; i < size; i++) {
+      if (used.has((s + i) % n)) { ok = false; break; }
+    }
+    if (ok) free.push(s);
+  }
+  const pool = free.length ? free : null;
+  if (!pool) return pickWindow(files, size);
+
+  const startIndex = pool[Math.floor(Math.random() * pool.length)];
+  const window = [];
+  for (let i = 0; i < size; i++) window.push(files[(startIndex + i) % n]);
+  return { startIndex, window };
+}
+
 function pickCollageFiles(files, startIndex, count, offset) {
   if (!files.length) return [];
   const total = files.length;
@@ -874,6 +952,22 @@ async function ensureRotateFlags(state) {
   state.rotateFlags = flags;
 }
 
+// Total non-excluded events across all years (cached dir lists). Used to cap
+// the anti-repeat window so it can never exceed what the library can satisfy.
+async function countAllowedEvents(reqId, years) {
+  let total = 0;
+  for (const year of years) {
+    const yearAbs = path.join(ROOT_DIR, year);
+    try {
+      const { dirs: events } = await getYearDirsCached(reqId, yearAbs);
+      total += events.filter((name) => !excludedEvents.has(eventKey(year, name))).length;
+    } catch {
+      // ignore a year we cannot list
+    }
+  }
+  return total;
+}
+
 async function pickNewSelection(reqId) {
   // 1) metų folderis (top-level), excludinam tik #Recycle
   log(reqId, "BUILD set (random N)", { windowSize: STREAM_COUNT });
@@ -881,8 +975,17 @@ async function pickNewSelection(reqId) {
   log(reqId, "root dir list", { count: years.length, cacheHit: rootCacheHit });
   if (!years.length) throw new Error("No top-level folders found (after exclude).");
 
-  // bandysim kelis kartus rasti event su >=1 foto
-  for (let attempt = 1; attempt <= 15; attempt++) {
+  // Anti-repeat window: cap by library size so we never starve.
+  const totalEvents = await countAllowedEvents(reqId, years);
+  const spacing = Math.min(HISTORY_SIZE, Math.floor(totalEvents * 0.8));
+  const recent = recentEventKeys(spacing);
+  log(reqId, "anti-repeat", { totalEvents, historySize: HISTORY_SIZE, spacing, recentCount: recent.size });
+
+  // try several times to find an album with >=1 photo not shown recently
+  const MAX_ATTEMPTS = 60;
+  let fallback = null; // first valid pick, used if every attempt hits recent
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const pickedYear = pickRandom(years);
     const year = pickedYear.val;
     log(reqId, "pick year", { attempt, idx: pickedYear.idx, value: year, total: years.length });
@@ -916,11 +1019,12 @@ async function pickNewSelection(reqId) {
     }
 
     // 4) random start + 5 iš eilės
-  const { startIndex, window } = pickWindow(files, STREAM_COUNT);
-  log(reqId, "pick window", { year, event: eventName, startIndex, windowSize: STREAM_COUNT, filesTotal: files.length });
+    const key = eventKey(year, eventName);
+    const { startIndex, window } = pickWindowAvoiding(files, STREAM_COUNT, usedStartsForEvent(key));
+    log(reqId, "pick window", { year, event: eventName, startIndex, windowSize: STREAM_COUNT, filesTotal: files.length });
     const windowRel = window.map(relFromRoot);
 
-    return {
+    const sel = {
       picked: { year, event: eventName, startIndex, pickedAt: nowIso() },
       window,
       windowRel,
@@ -928,6 +1032,22 @@ async function pickNewSelection(reqId) {
       startIndex,
       debug: { cacheHit, scannedMs, filesTotal: files.length, sortKey }
     };
+
+    if (recent.has(key)) {
+      if (!fallback) fallback = sel; // keep as a last resort
+      log(reqId, "skip recent album", { key, attempt });
+      continue;
+    }
+
+    recordPick(year, eventName, startIndex);
+    return sel;
+  }
+
+  // Every attempt hit a recently shown album — use the fallback.
+  if (fallback) {
+    log(reqId, "anti-repeat exhausted, using fallback", { key: eventKey(fallback.picked.year, fallback.picked.event) });
+    recordPick(fallback.picked.year, fallback.picked.event, fallback.startIndex);
+    return fallback;
   }
 
   throw new Error("Failed to find any album with images after attempts.");
