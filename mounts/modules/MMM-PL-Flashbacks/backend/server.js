@@ -521,8 +521,12 @@ function trimWeatherSamples(samples) {
   return samples.filter((s) => s && typeof s.ts === "number" && s.ts >= cutoff);
 }
 
+function numOrNull(v) {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
 async function fetchWeatherSample() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_fetch_${resp.status}`);
   const data = await resp.json();
@@ -533,7 +537,9 @@ async function fetchWeatherSample() {
   return {
     ts: Date.now(),
     temp: current.temperature_2m,
-    feels: current.apparent_temperature
+    feels: current.apparent_temperature,
+    precip: numOrNull(current.precipitation),
+    pressure: numOrNull(current.pressure_msl)
   };
 }
 
@@ -554,13 +560,15 @@ async function fetchWeatherHistory() {
   const start = new Date(now.getTime() - WEATHER_HISTORY_HOURS * 60 * 60 * 1000);
   const startYmd = dateYmdDash(start);
   const endYmd = dateYmdDash(now);
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&hourly=temperature_2m,apparent_temperature&start_date=${encodeURIComponent(startYmd)}&end_date=${encodeURIComponent(endYmd)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&hourly=temperature_2m,apparent_temperature,precipitation,pressure_msl&start_date=${encodeURIComponent(startYmd)}&end_date=${encodeURIComponent(endYmd)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_history_${resp.status}`);
   const data = await resp.json();
   const times = data && data.hourly && Array.isArray(data.hourly.time) ? data.hourly.time : [];
   const temps = data && data.hourly ? data.hourly.temperature_2m : [];
   const feels = data && data.hourly ? data.hourly.apparent_temperature : [];
+  const precips = data && data.hourly ? data.hourly.precipitation : [];
+  const pressures = data && data.hourly ? data.hourly.pressure_msl : [];
   const samples = [];
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
@@ -569,7 +577,13 @@ async function fetchWeatherHistory() {
     if (temp === null || feel === null) continue;
     const ts = new Date(t).getTime();
     if (!Number.isFinite(ts)) continue;
-    samples.push({ ts, temp, feels: feel });
+    samples.push({
+      ts,
+      temp,
+      feels: feel,
+      precip: numOrNull(precips && precips[i]),
+      pressure: numOrNull(pressures && pressures[i])
+    });
   }
   weatherHistorySamples = trimWeatherSamples(samples);
   weatherHistoryUpdatedAt = nowIso();
@@ -585,7 +599,7 @@ async function refreshWeatherHistory() {
 
 async function fetchWeatherForecast() {
   const days = Math.max(1, Number.isFinite(WEATHER_FORECAST_DAYS) ? WEATHER_FORECAST_DAYS : 4);
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature&minutely_15=temperature_2m,apparent_temperature&forecast_days=${encodeURIComponent(days)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl&minutely_15=temperature_2m,apparent_temperature,precipitation,pressure_msl&forecast_days=${encodeURIComponent(days)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_forecast_${resp.status}`);
   const data = await resp.json();
@@ -593,12 +607,16 @@ async function fetchWeatherForecast() {
     weatherCurrent = {
       ts: Date.now(),
       temp: data.current.temperature_2m,
-      feels: data.current.apparent_temperature
+      feels: data.current.apparent_temperature,
+      precip: numOrNull(data.current.precipitation),
+      pressure: numOrNull(data.current.pressure_msl)
     };
   }
   const times = data && data.minutely_15 && Array.isArray(data.minutely_15.time) ? data.minutely_15.time : [];
   const temps = data && data.minutely_15 ? data.minutely_15.temperature_2m : [];
   const feels = data && data.minutely_15 ? data.minutely_15.apparent_temperature : [];
+  const precips = data && data.minutely_15 ? data.minutely_15.precipitation : [];
+  const pressures = data && data.minutely_15 ? data.minutely_15.pressure_msl : [];
   const samples = [];
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
@@ -607,7 +625,13 @@ async function fetchWeatherForecast() {
     if (temp === null || feel === null) continue;
     const ts = new Date(t).getTime();
     if (!Number.isFinite(ts)) continue;
-    samples.push({ ts, temp, feels: feel });
+    samples.push({
+      ts,
+      temp,
+      feels: feel,
+      precip: numOrNull(precips && precips[i]),
+      pressure: numOrNull(pressures && pressures[i])
+    });
   }
   weatherForecastSamples = samples;
   weatherForecastUpdatedAt = nowIso();
@@ -1344,7 +1368,7 @@ app.get("/help", (req, res) => {
       { path: "/image/:id", method: "GET", description: "Serve image for stream id (0..STREAM_COUNT-1)." },
       { path: "/collage/sequence", method: "GET", description: "Serve collage from next images in the same album." },
       { path: "/collage/overview", method: "GET", description: "Serve overview collage from evenly spaced images in the album." },
-      { path: "/weather/trends", method: "GET", description: "Temperature & feels-like history samples." },
+      { path: "/weather/trends", method: "GET", description: "Temperature, feels-like, precipitation & pressure history/forecast samples." },
       { path: "/vvt/next", method: "GET", description: "Next departures from a stop (GTFS schedule)." },
       { path: "/vvt/stops", method: "GET", description: "Search stop names (GTFS)." },
       { path: "/vvt/debug", method: "GET", description: "Debug GTFS cache and stop matching." },

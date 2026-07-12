@@ -17,3 +17,4 @@
 2026-02-21T16:40:00Z weather trends: set 15-min fetch intervals
 2026-02-22T22:35:00Z flashbacks state: include library cache stats
 
+2026-07-12T06:28:57Z weather backend: fetch precipitation + pressure_msl in current/history/forecast

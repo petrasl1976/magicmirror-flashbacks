@@ -18,3 +18,8 @@
   border-radius: 6px;
 }
 
+.wtr-canvas-pressure,
+.wtr-canvas-precip {
+  margin-bottom: 2px;
+}
+
