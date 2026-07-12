@@ -71,3 +71,4 @@
 2026-07-12T06:28:57Z weather trends: add precipitation (cyan bars) + pressure (green line) panels above temp
 2026-07-12T07:15:52Z weather trends: pressure current-value guide line + humidity line sharing precip axis with its own current guide
 2026-07-12T07:33:26Z weather trends: root precip bars on humidity current-value line; humidity color lighter cyan
+2026-07-12T07:49:56Z weather trends: draw humidity as top layer over precip bars, filled current dot; darker precip + lighter humidity colors

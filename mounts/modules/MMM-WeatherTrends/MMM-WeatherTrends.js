@@ -12,9 +12,9 @@ Module.register("MMM-WeatherTrends", {
     showPrecip: true,
     showPressure: true,
     showHumidity: true,
-    precipColor: "90,200,250",
+    precipColor: "40,150,210",
     pressureColor: "168,200,50",
-    humidityColor: "170,225,255",
+    humidityColor: "205,240,255",
     precipHeight: 90,
     pressureHeight: 90,
     panelOrder: ["pressure", "precip", "temp"]
@@ -306,11 +306,11 @@ Module.register("MMM-WeatherTrends", {
     const xFor = (ts) => padX + ((ts - win.start) / (win.end - win.start)) * (w - padX * 2);
 
     // Precip bars are rooted on the humidity current-value line; if humidity is
-    // unavailable, they fall back to the panel bottom.
+    // unavailable (null/old cache — rare), they fall back to the panel bottom.
     let groundY = bottomY;
-    let groundDrawn = false;
+    let hRender = null;
 
-    // --- Relative humidity: line + current-value guide (drawn first, under bars) ---
+    // Humidity scale + ground line — computed first, drawn last (layer on top).
     if (this.config.showHumidity) {
       const hLine = this._lineFor("humidity", win);
       if (hLine.length >= 2) {
@@ -329,42 +329,13 @@ Module.register("MMM-WeatherTrends", {
           maxH = Math.min(100, maxH + m);
         }
         const yForH = (v) => padTop + (1 - (v - minH) / (maxH - minH)) * (bottomY - padTop);
-        this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
-
-        if (hCur !== null) {
-          const x = xFor(win.now);
-          const y = yForH(hCur);
-          groundY = y;
-          groundDrawn = true;
-          // Current-humidity guide = the precip ground line (they coincide).
-          ctx.shadowBlur = 0;
-          ctx.lineWidth = 1;
-          ctx.strokeStyle = `rgba(${hRgb},0.45)`;
-          ctx.beginPath();
-          ctx.moveTo(padX, y);
-          ctx.lineTo(w - padX, y);
-          ctx.stroke();
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "rgba(0,0,0,0.9)";
-          ctx.beginPath();
-          ctx.arc(x, y, 6, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = `rgba(${hRgb},0.95)`;
-          ctx.fillStyle = `rgba(${hRgb},0.95)`;
-          ctx.beginPath();
-          ctx.arc(x, y, 6, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.fill();
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          this._outlinedLabel(ctx, `${Math.round(hCur)}%`, x, Math.max(2, y - 30), hRgb, 1, `600 20px ${uiFont}`);
-        }
+        if (hCur !== null) groundY = yForH(hCur);
+        hRender = { hLine, hRgb, yForH, hCur };
       }
     }
 
     // Neutral baseline only when no humidity guide provides the ground line.
-    if (!groundDrawn) {
+    if (!hRender || hRender.hCur === null) {
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "rgba(255,255,255,0.25)";
       ctx.lineWidth = 1;
@@ -374,7 +345,7 @@ Module.register("MMM-WeatherTrends", {
       ctx.stroke();
     }
 
-    // --- Precipitation bars (own scale, rooted at groundY, drawn on top) ---
+    // --- Precipitation bars (own scale, rooted at groundY) ---
     if (this.config.showPrecip) {
       const line = this._lineFor("precip", win);
       const span = groundY - padTop; // room above the ground line for the tallest bar
@@ -416,6 +387,38 @@ Module.register("MMM-WeatherTrends", {
           const barH = span * Math.min(1, cur / maxVal);
           this._outlinedLabel(ctx, `${fmt(cur)}`, x, Math.max(2, groundY - barH - 30), rgb, 1, `600 20px ${uiFont}`);
         }
+      }
+    }
+
+    // --- Humidity line + current-value guide + filled dot: layer over the bars ---
+    if (hRender) {
+      const { hLine, hRgb, yForH, hCur } = hRender;
+      this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
+      if (hCur !== null) {
+        const x = xFor(win.now);
+        const y = groundY; // == yForH(hCur); the bars' ground line and humidity-now coincide
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = `rgba(${hRgb},0.45)`;
+        ctx.beginPath();
+        ctx.moveTo(padX, y);
+        ctx.lineTo(w - padX, y);
+        ctx.stroke();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(0,0,0,0.9)";
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(${hRgb},0.95)`;
+        ctx.fillStyle = `rgba(${hRgb},0.95)`;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fill();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        this._outlinedLabel(ctx, `${Math.round(hCur)}%`, x, Math.max(2, y - 30), hRgb, 1, `600 20px ${uiFont}`);
       }
     }
   },
