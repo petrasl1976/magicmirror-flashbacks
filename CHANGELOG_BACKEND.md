@@ -18,3 +18,4 @@
 2026-02-22T22:35:00Z flashbacks state: include library cache stats
 
 2026-07-12T06:28:57Z weather backend: fetch precipitation + pressure_msl in current/history/forecast
+2026-07-12T07:15:52Z weather backend: fetch relative_humidity_2m in current/history/forecast

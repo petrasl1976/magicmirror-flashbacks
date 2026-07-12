@@ -526,7 +526,7 @@ function numOrNull(v) {
 }
 
 async function fetchWeatherSample() {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl,relative_humidity_2m&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_fetch_${resp.status}`);
   const data = await resp.json();
@@ -539,7 +539,8 @@ async function fetchWeatherSample() {
     temp: current.temperature_2m,
     feels: current.apparent_temperature,
     precip: numOrNull(current.precipitation),
-    pressure: numOrNull(current.pressure_msl)
+    pressure: numOrNull(current.pressure_msl),
+    humidity: numOrNull(current.relative_humidity_2m)
   };
 }
 
@@ -560,7 +561,7 @@ async function fetchWeatherHistory() {
   const start = new Date(now.getTime() - WEATHER_HISTORY_HOURS * 60 * 60 * 1000);
   const startYmd = dateYmdDash(start);
   const endYmd = dateYmdDash(now);
-  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&hourly=temperature_2m,apparent_temperature,precipitation,pressure_msl&start_date=${encodeURIComponent(startYmd)}&end_date=${encodeURIComponent(endYmd)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&hourly=temperature_2m,apparent_temperature,precipitation,pressure_msl,relative_humidity_2m&start_date=${encodeURIComponent(startYmd)}&end_date=${encodeURIComponent(endYmd)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_history_${resp.status}`);
   const data = await resp.json();
@@ -569,6 +570,7 @@ async function fetchWeatherHistory() {
   const feels = data && data.hourly ? data.hourly.apparent_temperature : [];
   const precips = data && data.hourly ? data.hourly.precipitation : [];
   const pressures = data && data.hourly ? data.hourly.pressure_msl : [];
+  const humidities = data && data.hourly ? data.hourly.relative_humidity_2m : [];
   const samples = [];
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
@@ -582,7 +584,8 @@ async function fetchWeatherHistory() {
       temp,
       feels: feel,
       precip: numOrNull(precips && precips[i]),
-      pressure: numOrNull(pressures && pressures[i])
+      pressure: numOrNull(pressures && pressures[i]),
+      humidity: numOrNull(humidities && humidities[i])
     });
   }
   weatherHistorySamples = trimWeatherSamples(samples);
@@ -599,7 +602,7 @@ async function refreshWeatherHistory() {
 
 async function fetchWeatherForecast() {
   const days = Math.max(1, Number.isFinite(WEATHER_FORECAST_DAYS) ? WEATHER_FORECAST_DAYS : 4);
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl&minutely_15=temperature_2m,apparent_temperature,precipitation,pressure_msl&forecast_days=${encodeURIComponent(days)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(WEATHER_LAT)}&longitude=${encodeURIComponent(WEATHER_LON)}&current=temperature_2m,apparent_temperature,precipitation,pressure_msl&minutely_15=temperature_2m,apparent_temperature,precipitation,pressure_msl,relative_humidity_2m&forecast_days=${encodeURIComponent(days)}&temperature_unit=${encodeURIComponent(WEATHER_UNIT)}&timezone=auto`;
   const resp = await fetch(url, { cache: "no-store" });
   if (!resp.ok) throw new Error(`weather_forecast_${resp.status}`);
   const data = await resp.json();
@@ -609,7 +612,8 @@ async function fetchWeatherForecast() {
       temp: data.current.temperature_2m,
       feels: data.current.apparent_temperature,
       precip: numOrNull(data.current.precipitation),
-      pressure: numOrNull(data.current.pressure_msl)
+      pressure: numOrNull(data.current.pressure_msl),
+      humidity: numOrNull(data.current.relative_humidity_2m)
     };
   }
   const times = data && data.minutely_15 && Array.isArray(data.minutely_15.time) ? data.minutely_15.time : [];
@@ -617,6 +621,7 @@ async function fetchWeatherForecast() {
   const feels = data && data.minutely_15 ? data.minutely_15.apparent_temperature : [];
   const precips = data && data.minutely_15 ? data.minutely_15.precipitation : [];
   const pressures = data && data.minutely_15 ? data.minutely_15.pressure_msl : [];
+  const humidities = data && data.minutely_15 ? data.minutely_15.relative_humidity_2m : [];
   const samples = [];
   for (let i = 0; i < times.length; i++) {
     const t = times[i];
@@ -630,7 +635,8 @@ async function fetchWeatherForecast() {
       temp,
       feels: feel,
       precip: numOrNull(precips && precips[i]),
-      pressure: numOrNull(pressures && pressures[i])
+      pressure: numOrNull(pressures && pressures[i]),
+      humidity: numOrNull(humidities && humidities[i])
     });
   }
   weatherForecastSamples = samples;

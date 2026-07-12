@@ -69,3 +69,4 @@
 2026-02-24T20:05:00Z calendar: force date column first
 
 2026-07-12T06:28:57Z weather trends: add precipitation (cyan bars) + pressure (green line) panels above temp
+2026-07-12T07:15:52Z weather trends: pressure current-value guide line + humidity line sharing precip axis with its own current guide

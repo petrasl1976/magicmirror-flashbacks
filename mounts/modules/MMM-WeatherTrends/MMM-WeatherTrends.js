@@ -11,8 +11,10 @@ Module.register("MMM-WeatherTrends", {
     futureDays: 3,
     showPrecip: true,
     showPressure: true,
+    showHumidity: true,
     precipColor: "90,200,250",
     pressureColor: "168,200,50",
+    humidityColor: "180,150,230",
     precipHeight: 90,
     pressureHeight: 90,
     panelOrder: ["pressure", "precip", "temp"]
@@ -63,7 +65,7 @@ Module.register("MMM-WeatherTrends", {
 
     order.forEach((kind) => {
       if (kind === "pressure" && !this.config.showPressure) return;
-      if (kind === "precip" && !this.config.showPrecip) return;
+      if (kind === "precip" && !this.config.showPrecip && !this.config.showHumidity) return;
 
       const canvas = document.createElement("canvas");
       canvas.width = this.config.width;
@@ -261,7 +263,14 @@ Module.register("MMM-WeatherTrends", {
     if (cur !== null) {
       const x = xFor(win.now);
       const y = yFor(cur);
+      // Thin horizontal guide through the current value (matches temp panel).
       ctx.shadowBlur = 0;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${rgb},0.45)`;
+      ctx.beginPath();
+      ctx.moveTo(padX, y);
+      ctx.lineTo(w - padX, y);
+      ctx.stroke();
       ctx.lineWidth = 4;
       ctx.strokeStyle = "rgba(0,0,0,0.9)";
       ctx.beginPath();
@@ -278,6 +287,8 @@ Module.register("MMM-WeatherTrends", {
     }
   },
 
+  // Precipitation bars + relative-humidity line share one panel and one x-axis
+  // so their correlation is visible; each keeps its own y-scale.
   _drawPrecipPanel(canvas) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -286,25 +297,15 @@ Module.register("MMM-WeatherTrends", {
     ctx.clearRect(0, 0, w, h);
     const win = this._computeWindow();
     if (!win) return;
-    const line = this._lineFor("precip", win);
-    if (!line.length) return;
 
-    const rgb = this.config.precipColor;
     const uiFont = this._getUiFontFamily();
     const padX = 36;
     const padTop = 22;
     const padBottom = 16;
     const baseY = h - padBottom;
-    let maxP = line[0];
-    line.forEach((p) => {
-      if (p.v > maxP.v) maxP = p;
-    });
-    const maxVal = Math.max(maxP.v, 0.5); // floor so a light drizzle is still visible
     const xFor = (ts) => padX + ((ts - win.start) / (win.end - win.start)) * (w - padX * 2);
-    const hourMs = 60 * 60 * 1000;
-    const barW = Math.max(2, ((w - padX * 2) / ((win.end - win.start) / hourMs)) * 0.8);
 
-    // Baseline
+    // Baseline (shared axis for bars + humidity)
     ctx.shadowBlur = 0;
     ctx.strokeStyle = "rgba(255,255,255,0.25)";
     ctx.lineWidth = 1;
@@ -313,36 +314,98 @@ Module.register("MMM-WeatherTrends", {
     ctx.lineTo(w - padX, baseY + 0.5);
     ctx.stroke();
 
-    line.forEach((p) => {
-      if (p.v <= 0) return;
-      const alpha = this._alphaFor(p.ts, win.now, win.maxSpan, 0.2, 1);
-      const x = xFor(p.ts);
-      const barH = ((baseY - padTop) * Math.min(1, p.v / maxVal));
-      const y = baseY - barH;
-      ctx.shadowColor = "rgba(0,0,0,0.95)";
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = `rgba(${rgb},${0.9 * alpha})`;
-      ctx.fillRect(x - barW / 2, y, barW, barH);
-    });
-    ctx.shadowBlur = 0;
+    // --- Relative humidity: line + current-value guide (drawn first, under bars) ---
+    if (this.config.showHumidity) {
+      const hLine = this._lineFor("humidity", win);
+      if (hLine.length >= 2) {
+        const hRgb = this.config.humidityColor;
+        const hVals = hLine.map((p) => p.v);
+        const hCur = this.current && Number.isFinite(this.current.humidity) ? this.current.humidity : null;
+        if (hCur !== null) hVals.push(hCur);
+        let minH = Math.min(...hVals);
+        let maxH = Math.max(...hVals);
+        if (maxH - minH < 5) {
+          minH = Math.max(0, minH - 5);
+          maxH = Math.min(100, maxH + 5);
+        } else {
+          const m = (maxH - minH) * 0.15;
+          minH = Math.max(0, minH - m);
+          maxH = Math.min(100, maxH + m);
+        }
+        const yForH = (v) => padTop + (1 - (v - minH) / (maxH - minH)) * (baseY - padTop);
+        this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
 
-    // Labels: peak amount, and current if raining.
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    const fmt = (v) => (v >= 10 ? `${Math.round(v)}` : `${v.toFixed(1)}`);
-    if (maxP.v > 0) {
-      const x = xFor(maxP.ts);
-      const barH = (baseY - padTop) * Math.min(1, maxP.v / maxVal);
-      this._outlinedLabel(ctx, `${fmt(maxP.v)}`, x, Math.max(2, baseY - barH - 22),
-        rgb, this._alphaFor(maxP.ts, win.now, win.maxSpan), `18px ${uiFont}`);
-    } else {
-      this._outlinedLabel(ctx, "0", padX + 8, 2, rgb, 0.7, `18px ${uiFont}`);
+        if (hCur !== null) {
+          const x = xFor(win.now);
+          const y = yForH(hCur);
+          ctx.shadowBlur = 0;
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = `rgba(${hRgb},0.45)`;
+          ctx.beginPath();
+          ctx.moveTo(padX, y);
+          ctx.lineTo(w - padX, y);
+          ctx.stroke();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = "rgba(0,0,0,0.9)";
+          ctx.beginPath();
+          ctx.arc(x, y, 6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = `rgba(${hRgb},0.95)`;
+          ctx.fillStyle = `rgba(${hRgb},0.95)`;
+          ctx.beginPath();
+          ctx.arc(x, y, 6, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fill();
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          this._outlinedLabel(ctx, `${Math.round(hCur)}%`, x, Math.max(2, y - 30), hRgb, 1, `600 20px ${uiFont}`);
+        }
+      }
     }
-    const cur = this.current && Number.isFinite(this.current.precip) ? this.current.precip : null;
-    if (cur !== null && cur > 0) {
-      const x = xFor(win.now);
-      const barH = (baseY - padTop) * Math.min(1, cur / maxVal);
-      this._outlinedLabel(ctx, `${fmt(cur)}`, x, Math.max(2, baseY - barH - 30), rgb, 1, `600 20px ${uiFont}`);
+
+    // --- Precipitation bars (own scale, drawn on top) ---
+    if (this.config.showPrecip) {
+      const line = this._lineFor("precip", win);
+      if (line.length) {
+        const rgb = this.config.precipColor;
+        let maxP = line[0];
+        line.forEach((p) => {
+          if (p.v > maxP.v) maxP = p;
+        });
+        const maxVal = Math.max(maxP.v, 0.5); // floor so a light drizzle is still visible
+        const hourMs = 60 * 60 * 1000;
+        const barW = Math.max(2, ((w - padX * 2) / ((win.end - win.start) / hourMs)) * 0.8);
+
+        line.forEach((p) => {
+          if (p.v <= 0) return;
+          const alpha = this._alphaFor(p.ts, win.now, win.maxSpan, 0.2, 1);
+          const x = xFor(p.ts);
+          const barH = (baseY - padTop) * Math.min(1, p.v / maxVal);
+          const y = baseY - barH;
+          ctx.shadowColor = "rgba(0,0,0,0.95)";
+          ctx.shadowBlur = 8;
+          ctx.fillStyle = `rgba(${rgb},${0.9 * alpha})`;
+          ctx.fillRect(x - barW / 2, y, barW, barH);
+        });
+        ctx.shadowBlur = 0;
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        const fmt = (v) => (v >= 10 ? `${Math.round(v)}` : `${v.toFixed(1)}`);
+        if (maxP.v > 0) {
+          const x = xFor(maxP.ts);
+          const barH = (baseY - padTop) * Math.min(1, maxP.v / maxVal);
+          this._outlinedLabel(ctx, `${fmt(maxP.v)}`, x, Math.max(2, baseY - barH - 22),
+            rgb, this._alphaFor(maxP.ts, win.now, win.maxSpan), `18px ${uiFont}`);
+        }
+        const cur = this.current && Number.isFinite(this.current.precip) ? this.current.precip : null;
+        if (cur !== null && cur > 0) {
+          const x = xFor(win.now);
+          const barH = (baseY - padTop) * Math.min(1, cur / maxVal);
+          this._outlinedLabel(ctx, `${fmt(cur)}`, x, Math.max(2, baseY - barH - 30), rgb, 1, `600 20px ${uiFont}`);
+        }
+      }
     }
   },
 
