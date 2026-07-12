@@ -14,7 +14,7 @@ Module.register("MMM-WeatherTrends", {
     showHumidity: true,
     precipColor: "90,200,250",
     pressureColor: "168,200,50",
-    humidityColor: "180,150,230",
+    humidityColor: "170,225,255",
     precipHeight: 90,
     pressureHeight: 90,
     panelOrder: ["pressure", "precip", "temp"]
@@ -302,17 +302,13 @@ Module.register("MMM-WeatherTrends", {
     const padX = 36;
     const padTop = 22;
     const padBottom = 16;
-    const baseY = h - padBottom;
+    const bottomY = h - padBottom;
     const xFor = (ts) => padX + ((ts - win.start) / (win.end - win.start)) * (w - padX * 2);
 
-    // Baseline (shared axis for bars + humidity)
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(padX, baseY + 0.5);
-    ctx.lineTo(w - padX, baseY + 0.5);
-    ctx.stroke();
+    // Precip bars are rooted on the humidity current-value line; if humidity is
+    // unavailable, they fall back to the panel bottom.
+    let groundY = bottomY;
+    let groundDrawn = false;
 
     // --- Relative humidity: line + current-value guide (drawn first, under bars) ---
     if (this.config.showHumidity) {
@@ -332,12 +328,15 @@ Module.register("MMM-WeatherTrends", {
           minH = Math.max(0, minH - m);
           maxH = Math.min(100, maxH + m);
         }
-        const yForH = (v) => padTop + (1 - (v - minH) / (maxH - minH)) * (baseY - padTop);
+        const yForH = (v) => padTop + (1 - (v - minH) / (maxH - minH)) * (bottomY - padTop);
         this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
 
         if (hCur !== null) {
           const x = xFor(win.now);
           const y = yForH(hCur);
+          groundY = y;
+          groundDrawn = true;
+          // Current-humidity guide = the precip ground line (they coincide).
           ctx.shadowBlur = 0;
           ctx.lineWidth = 1;
           ctx.strokeStyle = `rgba(${hRgb},0.45)`;
@@ -364,10 +363,22 @@ Module.register("MMM-WeatherTrends", {
       }
     }
 
-    // --- Precipitation bars (own scale, drawn on top) ---
+    // Neutral baseline only when no humidity guide provides the ground line.
+    if (!groundDrawn) {
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255,255,255,0.25)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padX, groundY + 0.5);
+      ctx.lineTo(w - padX, groundY + 0.5);
+      ctx.stroke();
+    }
+
+    // --- Precipitation bars (own scale, rooted at groundY, drawn on top) ---
     if (this.config.showPrecip) {
       const line = this._lineFor("precip", win);
-      if (line.length) {
+      const span = groundY - padTop; // room above the ground line for the tallest bar
+      if (line.length && span > 2) {
         const rgb = this.config.precipColor;
         let maxP = line[0];
         line.forEach((p) => {
@@ -381,8 +392,8 @@ Module.register("MMM-WeatherTrends", {
           if (p.v <= 0) return;
           const alpha = this._alphaFor(p.ts, win.now, win.maxSpan, 0.2, 1);
           const x = xFor(p.ts);
-          const barH = (baseY - padTop) * Math.min(1, p.v / maxVal);
-          const y = baseY - barH;
+          const barH = span * Math.min(1, p.v / maxVal);
+          const y = groundY - barH;
           ctx.shadowColor = "rgba(0,0,0,0.95)";
           ctx.shadowBlur = 8;
           ctx.fillStyle = `rgba(${rgb},${0.9 * alpha})`;
@@ -395,15 +406,15 @@ Module.register("MMM-WeatherTrends", {
         const fmt = (v) => (v >= 10 ? `${Math.round(v)}` : `${v.toFixed(1)}`);
         if (maxP.v > 0) {
           const x = xFor(maxP.ts);
-          const barH = (baseY - padTop) * Math.min(1, maxP.v / maxVal);
-          this._outlinedLabel(ctx, `${fmt(maxP.v)}`, x, Math.max(2, baseY - barH - 22),
+          const barH = span * Math.min(1, maxP.v / maxVal);
+          this._outlinedLabel(ctx, `${fmt(maxP.v)}`, x, Math.max(2, groundY - barH - 22),
             rgb, this._alphaFor(maxP.ts, win.now, win.maxSpan), `18px ${uiFont}`);
         }
         const cur = this.current && Number.isFinite(this.current.precip) ? this.current.precip : null;
         if (cur !== null && cur > 0) {
           const x = xFor(win.now);
-          const barH = (baseY - padTop) * Math.min(1, cur / maxVal);
-          this._outlinedLabel(ctx, `${fmt(cur)}`, x, Math.max(2, baseY - barH - 30), rgb, 1, `600 20px ${uiFont}`);
+          const barH = span * Math.min(1, cur / maxVal);
+          this._outlinedLabel(ctx, `${fmt(cur)}`, x, Math.max(2, groundY - barH - 30), rgb, 1, `600 20px ${uiFont}`);
         }
       }
     }
