@@ -316,7 +316,16 @@ Module.register("MMM-WeatherTrends", {
       if (hLine.length >= 2) {
         const hRgb = this.config.humidityColor;
         const hVals = hLine.map((p) => p.v);
-        const hCur = this.current && Number.isFinite(this.current.humidity) ? this.current.humidity : null;
+        let hCur = this.current && Number.isFinite(this.current.humidity) ? this.current.humidity : null;
+        // Fall back to the humidity value on the line nearest "now" so the
+        // current dot is always shown even if the backend omits current.humidity.
+        if (hCur === null) {
+          let best = hLine[0];
+          hLine.forEach((p) => {
+            if (Math.abs(p.ts - win.now) < Math.abs(best.ts - win.now)) best = p;
+          });
+          hCur = best.v;
+        }
         if (hCur !== null) hVals.push(hCur);
         let minH = Math.min(...hVals);
         let maxH = Math.max(...hVals);
