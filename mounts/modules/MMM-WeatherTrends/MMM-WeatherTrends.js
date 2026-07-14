@@ -139,41 +139,115 @@ Module.register("MMM-WeatherTrends", {
     return minAlpha + (maxAlpha - minAlpha) * (1 - eased);
   },
 
+  // Metric values (ts/v) with null/absent entries dropped.
+  _cleanSeries(series, key) {
+    return series
+      .map((s) => ({ ts: s.ts, v: typeof s[key] === "number" && Number.isFinite(s[key]) ? s[key] : null }))
+      .filter((p) => p.v !== null);
+  },
+
+  // Linear interpolation of a sorted {ts, v} array at ts (clamped at the ends).
+  _interpAt(arr, ts) {
+    if (!arr.length) return null;
+    if (ts <= arr[0].ts) return arr[0].v;
+    const last = arr[arr.length - 1];
+    if (ts >= last.ts) return last.v;
+    let lo = 0;
+    let hi = arr.length - 1;
+    while (lo <= hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (arr[mid].ts === ts) return arr[mid].v;
+      if (arr[mid].ts < ts) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    const left = arr[Math.max(0, hi)];
+    const right = arr[Math.min(arr.length - 1, lo)];
+    if (!left || !right || left.ts === right.ts) return (left || right).v;
+    const t = (ts - left.ts) / (right.ts - left.ts);
+    return left.v + (right.v - left.v) * t;
+  },
+
   // Linear-interpolated hourly samples of one metric across the whole window,
   // splitting history (<= now) from forecast (> now). Skips null/absent values.
   _lineFor(key, win) {
-    const clean = (series) =>
-      series
-        .map((s) => ({ ts: s.ts, v: typeof s[key] === "number" && Number.isFinite(s[key]) ? s[key] : null }))
-        .filter((p) => p.v !== null);
-    const hist = clean(win.historySeries);
-    const fore = clean(win.forecastSeries);
-    const interp = (arr, ts) => {
-      if (!arr.length) return null;
-      if (ts <= arr[0].ts) return arr[0].v;
-      const last = arr[arr.length - 1];
-      if (ts >= last.ts) return last.v;
-      let lo = 0;
-      let hi = arr.length - 1;
-      while (lo <= hi) {
-        const mid = Math.floor((lo + hi) / 2);
-        if (arr[mid].ts === ts) return arr[mid].v;
-        if (arr[mid].ts < ts) lo = mid + 1;
-        else hi = mid - 1;
-      }
-      const left = arr[Math.max(0, hi)];
-      const right = arr[Math.min(arr.length - 1, lo)];
-      if (!left || !right || left.ts === right.ts) return (left || right).v;
-      const t = (ts - left.ts) / (right.ts - left.ts);
-      return left.v + (right.v - left.v) * t;
-    };
+    const hist = this._cleanSeries(win.historySeries, key);
+    const fore = this._cleanSeries(win.forecastSeries, key);
     const stepMs = 60 * 60 * 1000;
     const out = [];
     for (let ts = win.start; ts <= win.end; ts += stepMs) {
-      const v = ts <= win.now ? interp(hist, ts) : interp(fore, ts);
+      const v = ts <= win.now ? this._interpAt(hist, ts) : this._interpAt(fore, ts);
       if (v !== null && Number.isFinite(v)) out.push({ ts, v });
     }
     return out;
+  },
+
+  // Per-day markers (past 4 days .. next 3) for one metric, mirroring the temp
+  // panel: current value used at offset 0, interpolated history/forecast else.
+  _markersFor(key, win, curVal) {
+    const hist = this._cleanSeries(win.historySeries, key);
+    const fore = this._cleanSeries(win.forecastSeries, key);
+    return win.offsetsDays
+      .map((offsetDays) => {
+        const ts = win.now + offsetDays * win.dayMs;
+        let v;
+        if (offsetDays === 0 && curVal !== null && curVal !== undefined) v = curVal;
+        else if (offsetDays < 0) v = this._interpAt(hist, ts);
+        else v = this._interpAt(fore, ts);
+        if (v === null || !Number.isFinite(v)) return null;
+        return { offsetDays, ts, v };
+      })
+      .filter(Boolean);
+  },
+
+  // Rings at each day marker (current filled) + guide line + labels through the
+  // current value. Matches the temp panel's marker styling for a single series.
+  _drawValueMarkers(ctx, xFor, yFor, markers, win, rgb, uiFont, fmt) {
+    const r = 6;
+    markers.forEach((m) => {
+      const x = xFor(m.ts);
+      const y = yFor(m.v);
+      const isCurrent = m.offsetDays === 0;
+      const alpha = this._alphaFor(m.ts, win.now, win.maxSpan, 0.2, 1);
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = `rgba(0,0,0,${0.9 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(${rgb},${0.95 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      if (isCurrent) {
+        ctx.fillStyle = `rgba(${rgb},${0.95 * alpha})`;
+        ctx.fill();
+      }
+    });
+
+    const cur = markers.find((m) => m.offsetDays === 0);
+    if (cur) {
+      const y = yFor(cur.v);
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = `rgba(${rgb},0.45)`;
+      ctx.beginPath();
+      ctx.moveTo(xFor(win.start), y);
+      ctx.lineTo(xFor(win.end), y);
+      ctx.stroke();
+    }
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    markers.forEach((m) => {
+      const x = xFor(m.ts);
+      const y = yFor(m.v);
+      const isCurrent = m.offsetDays === 0;
+      const alpha = this._alphaFor(m.ts, win.now, win.maxSpan, 0.2, 1);
+      const font = isCurrent ? `600 20px ${uiFont}` : `18px ${uiFont}`;
+      const up = isCurrent ? 30 : 22;
+      this._outlinedLabel(ctx, fmt(m.v), x, Math.max(2, y - up), rgb, isCurrent ? 1 : alpha, font);
+    });
   },
 
   // Faded, black-outlined line matching the temperature panel's style.
@@ -246,45 +320,9 @@ Module.register("MMM-WeatherTrends", {
 
     this._drawFadedLine(ctx, xFor, yFor, line, win.now, win.maxSpan, rgb);
 
-    // Extremes + current value labels (minimal).
-    let maxP = line[0];
-    let minP = line[0];
-    line.forEach((p) => {
-      if (p.v > maxP.v) maxP = p;
-      if (p.v < minP.v) minP = p;
-    });
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    this._outlinedLabel(ctx, `${Math.round(maxP.v)}`, xFor(maxP.ts), Math.max(2, yFor(maxP.v) - 22),
-      rgb, this._alphaFor(maxP.ts, win.now, win.maxSpan), `18px ${uiFont}`);
-    this._outlinedLabel(ctx, `${Math.round(minP.v)}`, xFor(minP.ts), Math.min(h - 20, yFor(minP.v) + 6),
-      rgb, this._alphaFor(minP.ts, win.now, win.maxSpan), `18px ${uiFont}`);
-
-    if (cur !== null) {
-      const x = xFor(win.now);
-      const y = yFor(cur);
-      // Thin horizontal guide through the current value (matches temp panel).
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = `rgba(${rgb},0.45)`;
-      ctx.beginPath();
-      ctx.moveTo(padX, y);
-      ctx.lineTo(w - padX, y);
-      ctx.stroke();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "rgba(0,0,0,0.9)";
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = `rgba(${rgb},0.95)`;
-      ctx.fillStyle = `rgba(${rgb},0.95)`;
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fill();
-      this._outlinedLabel(ctx, `${Math.round(cur)}`, x, Math.max(2, y - 30), rgb, 1, `600 20px ${uiFont}`);
-    }
+    // Per-day markers + labels (same layout as the temp panel).
+    const markers = this._markersFor("pressure", win, cur);
+    this._drawValueMarkers(ctx, xFor, yFor, markers, win, rgb, uiFont, (v) => `${Math.round(v)}`);
   },
 
   // Precipitation bars + relative-humidity line share one panel and one x-axis
@@ -399,36 +437,12 @@ Module.register("MMM-WeatherTrends", {
       }
     }
 
-    // --- Humidity line + current-value guide + filled dot: layer over the bars ---
+    // --- Humidity line + per-day markers + labels: layer over the bars ---
     if (hRender) {
       const { hLine, hRgb, yForH, hCur } = hRender;
       this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
-      if (hCur !== null) {
-        const x = xFor(win.now);
-        const y = groundY; // == yForH(hCur); the bars' ground line and humidity-now coincide
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = `rgba(${hRgb},0.45)`;
-        ctx.beginPath();
-        ctx.moveTo(padX, y);
-        ctx.lineTo(w - padX, y);
-        ctx.stroke();
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = "rgba(0,0,0,0.9)";
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = `rgba(${hRgb},0.95)`;
-        ctx.fillStyle = `rgba(${hRgb},0.95)`;
-        ctx.beginPath();
-        ctx.arc(x, y, 6, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fill();
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        this._outlinedLabel(ctx, `${Math.round(hCur)}%`, x, Math.max(2, y - 30), hRgb, 1, `600 20px ${uiFont}`);
-      }
+      const markers = this._markersFor("humidity", win, hCur);
+      this._drawValueMarkers(ctx, xFor, yForH, markers, win, hRgb, uiFont, (v) => `${Math.round(v)}%`);
     }
   },
 
