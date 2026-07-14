@@ -392,6 +392,12 @@ Module.register("MMM-WeatherTrends", {
       ctx.stroke();
     }
 
+    // Humidity curve drawn first so the (smaller) precip bars layer on top of it
+    // and occlude less of the line.
+    if (hRender) {
+      this._drawFadedLine(ctx, xFor, hRender.yForH, hRender.hLine, win.now, win.maxSpan, hRender.hRgb);
+    }
+
     // --- Precipitation bars (own scale, rooted at groundY) ---
     if (this.config.showPrecip) {
       const line = this._lineFor("precip", win);
@@ -437,10 +443,9 @@ Module.register("MMM-WeatherTrends", {
       }
     }
 
-    // --- Humidity line + per-day markers + labels: layer over the bars ---
+    // --- Humidity per-day markers + labels: on top so they stay readable ---
     if (hRender) {
-      const { hLine, hRgb, yForH, hCur } = hRender;
-      this._drawFadedLine(ctx, xFor, yForH, hLine, win.now, win.maxSpan, hRgb);
+      const { hRgb, yForH, hCur } = hRender;
       const markers = this._markersFor("humidity", win, hCur);
       this._drawValueMarkers(ctx, xFor, yForH, markers, win, hRgb, uiFont, (v) => `${Math.round(v)}%`);
     }
